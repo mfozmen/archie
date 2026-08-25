@@ -14,10 +14,33 @@ first and stop. Fuzzy-match the argument against entry-point labels and ids. Mor
 than one plausible match → ask the user which one with AskUserQuestion, listing
 the candidates. Never guess between two entry points.
 
+## 1b. A focus hint, when the user gave one
+
+`/archie:explain "<entry>" --focus "<hint>"` — anything after `--focus` is the
+user telling the tracer where to spend its 15-file budget:
+
+```
+/archie:explain "POST /api/orders/{id}/ship" --focus "the retry path through the queue worker"
+/archie:explain "orders:sync" --focus "you stopped at the repository layer last time; go into the mapper"
+```
+
+Pass the hint through to the tracer verbatim, labelled as a hint. **A hint says
+where to look, not what to conclude.** It buys attention, never belief: a claim
+the hint suggested still needs its own `file:line`, and a hint that turns out to
+be wrong about the code produces an unknown saying so, not a claim shaped to
+match it. If the user's hint and the code disagree, the code wins and the page
+says the hint was not borne out.
+
+This is also the answer to "you stopped too early". The tracer splits past 15
+files into sub-flows recorded as `coverage: "none"`; a focus hint on the next run
+points it at the branch that matters instead of the one it happened to reach
+first.
+
 ## 2. Trace it
 
-Dispatch the **tracer** agent with the repo root, the entry-point record, and
-the current HEAD sha (`git -C "$root" rev-parse HEAD`). The agents hold no shell —
+Dispatch the **tracer** agent with the repo root, the entry-point record, the
+current HEAD sha (`git -C "$root" rev-parse HEAD`), and the focus hint if there
+was one. The agents hold no shell —
 `Read`, `Grep`, `Glob` and nothing else — so anything they cannot read out of a
 file has to arrive in the prompt.
 

@@ -107,6 +107,14 @@ files — churn ranking is free from git and points at the heart of the system),
   (`index.php`, `main.go`, `Application.java`, …), discover what can be discovered, emit a
   recipe from it. Processes whose entry points cannot be derived land in `unknowns[]` with a
   request for a recipe hint. No "never returns empty" promise — an honest contract instead.
+- **Re-running is safe and additive.** Discovery owns *where* an entry point is — a moved
+  route gets its new `file:line`. The existing model owns what has been *learned* about it:
+  `coverage`, `traced_at_sha` and `watch[]` survive a re-run untouched. An entry the sweep
+  no longer finds is never dropped: it is kept, demoted from `traced` to `stale` so it stops
+  counting as documented, and recorded in `unknowns[]` — a deleted route, a renamed one and
+  a recipe that stopped matching are indistinguishable from here, and only a human can say
+  which. That unknown clears itself when the entry point is found again, though the entry
+  stays `stale` until `explain` re-checks it.
 - **Known limitation (stated, not hidden):** dynamically registered routes
   (loops, config-driven, plugin systems) do not fall out of static sweeping; they land in
   `unknowns[]` as "dynamic registration at <file:line>, count underivable".
@@ -129,6 +137,12 @@ Produces one page per flow, on screen and in `.archie/flows/<id>.json`.
    fix round if a citation was outright wrong), then done.
 3. **The approved page is persisted**; the entry point becomes `traced` with
    `traced_at_sha`, and every file the tracer opened joins `watch[]`.
+
+**Directing a trace.** `--focus "<hint>"` tells the tracer where to spend its file
+budget — the answer to "you stopped too early" and "look over here". A hint says where to
+look, not what to conclude: it buys attention, never belief. Anything it leads to still
+needs its own `file:line`, and a hint the code does not bear out becomes an UNKNOWN saying
+so rather than a claim reshaped to match what someone expected to find.
 
 Sub-details bound for implementation: claims are matched to existing test lines where
 possible (unmatched claims carry an `(untested)` tag); the tracer opens at most ~15 files —

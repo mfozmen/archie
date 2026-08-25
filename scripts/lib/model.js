@@ -122,6 +122,10 @@ function mergeModel(existing, discovered) {
     const old = prev.get(d.id);
     if (!old) { added.push(d.id); return d; }
     kept.push(d.id);
+    // Note what is NOT reset here: a `stale` entry stays stale on rediscovery.
+    // A route that vanished and came back was deleted and re-added, renamed
+    // twice, or moved; the old page describes code nobody re-checked, so it must
+    // go through explain's refresh rather than quietly reverting to `traced`.
     // Discovery wins on location and label; the trace wins on everything it earned.
     // handler is discovery's field outright, including when it goes away: a route
     // that now dispatches to a closure has no handler, and keeping the old one
@@ -131,7 +135,14 @@ function mergeModel(existing, discovered) {
     return merged;
   });
   const disappeared = [];
-  for (const [id, old] of prev) if (!found.has(id)) { disappeared.push(id); entries.push(old); }
+  for (const [id, old] of prev) if (!found.has(id)) {
+    disappeared.push(id);
+    // Keep the trace — nothing is destroyed — but stop counting it as documented.
+    // The sweep can no longer find the entry point its page describes, so leaving
+    // it `traced` would inflate the coverage number with a page about something
+    // that may not exist. `stale` says exactly what is true: needs re-checking.
+    entries.push(old.coverage === 'traced' ? { ...old, coverage: 'stale' } : old);
+  }
   // Reported on stdout, a vanished entry point survives exactly as long as the
   // console scrollback. Persist it as an unknown instead, so it reaches
   // open-questions.md and the status count. Regenerated from scratch every run:
