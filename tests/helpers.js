@@ -8,23 +8,22 @@ function git(root, ...args) {
   return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
 }
 
-// Track every temp repo this test file created and remove them all once
-// node:test has finished running that file's tests (registered lazily, once).
+// Track every temp repo this test file created and remove them all once the
+// file's tests have finished. Registered at MODULE level on purpose: an after()
+// called inside a test binds to that test's scope and fires when it ends, so
+// every repo created by later tests in the same file would survive forever.
 const tempRoots = [];
-let cleanupRegistered = false;
+after(() => {
+  for (const r of tempRoots) fs.rmSync(r, { recursive: true, force: true });
+});
+
 function makeTempRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-test-'));
   execFileSync('git', ['init', '-q', root]);
   git(root, 'config', 'user.email', 'test@example.com');
   git(root, 'config', 'user.name', 'Test');
-  git(root, 'commit', '--allow-empty', '-qm', 'init');
+  git(root, '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-qm', 'init');
   tempRoots.push(root);
-  if (!cleanupRegistered) {
-    cleanupRegistered = true;
-    after(() => {
-      for (const r of tempRoots) fs.rmSync(r, { recursive: true, force: true });
-    });
-  }
   return { root };
 }
 function write(root, rel, content) {

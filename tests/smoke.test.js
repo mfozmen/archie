@@ -1,4 +1,3 @@
-// tests/smoke.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { makeTempRepo, write, commitAll } = require('./helpers');
