@@ -50,15 +50,34 @@ test('rendering is deterministic', () => {
   assert.deepStrictEqual([...a.entries()], [...b.entries()]);
 });
 
+// The property that matters is independence from INPUT ORDER: listFlows() reads a
+// directory, and readdirSync order is not guaranteed. Re-running with the same
+// array cannot catch that; two flows fed both ways can.
+test('output does not depend on the order flows arrive in', () => {
+  const other = { ...flow, id: 'cli.orders.sync', summary: 'Syncs orders.' };
+  const twoEntries = { ...model, entries: [...model.entries] };
+  const a = R.renderMarkdownPages(twoEntries, [flow, other], fp);
+  const b = R.renderMarkdownPages(twoEntries, [other, flow], fp);
+  assert.deepStrictEqual([...a.entries()], [...b.entries()]);
+});
+
+test('the html view shows the same look_at citation the markdown view does', () => {
+  const withLookAt = { ...flow, unknowns: [{ text: 'Retry policy', why: 'env-driven', look_at: { file: 'app/Ship.php', line: 77 } }] };
+  const md = R.renderMarkdownPages(model, [withLookAt], fp).get('http-post-api-orders-id-ship.md');
+  const html = R.renderHtml(model, [withLookAt], fp, '');
+  assert.match(md, /look at `app\/Ship\.php:77`/);
+  assert.match(html, /look at <code>app\/Ship\.php:77<\/code>/);
+});
+
 test('openapi draft: paths, params, honest TODOs', () => {
   const yaml = R.renderOpenapi(model, [flow]);
   assert.match(yaml, /openapi: 3\.0\.3/);
   assert.match(yaml, /\/api\/orders\/\{id\}\/ship:/);
   assert.match(yaml, /post:/);
-  assert.match(yaml, /name: id/);
+  assert.match(yaml, /name: 'id'/);   // quoted: a path could contain a YAML metacharacter
   assert.match(yaml, /'202':/);            // from "202 with job id."
   assert.match(yaml, /TODO: body schema not derivable/);
-  assert.match(yaml, /x-archie-evidence: routes\/api\.php:12/);
+  assert.match(yaml, /x-archie-evidence: 'routes\/api\.php:12'/);
 });
 
 test('html wiki is self-contained', () => {

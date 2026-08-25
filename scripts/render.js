@@ -89,11 +89,11 @@ function renderOpenapi(model, flows) {
     for (const { method, en, flow } of ops) {
       out.push(`    ${method}:`);
       out.push(`      description: ${yamlStr(flow?.summary || 'Not yet documented')}`);
-      out.push(`      x-archie-evidence: ${en.evidence[0].file}:${en.evidence[0].line}`);
+      out.push(`      x-archie-evidence: ${yamlStr(`${en.evidence[0].file}:${en.evidence[0].line}`)}`);
       if (params.length) {
         out.push('      parameters:');
         for (const name of params)
-          out.push(`        - name: ${name}`, '          in: path', '          required: true', '          schema:', '            type: string');
+          out.push(`        - name: ${yamlStr(name)}`, '          in: path', '          required: true', '          schema:', '            type: string');
       }
       out.push('      # TODO: body schema not derivable from static evidence');
       out.push('      responses:');
@@ -136,7 +136,8 @@ function renderHtml(model, flows, fp, mermaidJs) {
     }
     body.push('<h3>Unknowns</h3>');
     body.push(f.unknowns.length
-      ? '<ul>' + f.unknowns.map(u => `<li class="warn">⚠ ${esc(u.text)} — ${esc(u.why)}</li>`).join('') + '</ul>'
+      ? '<ul>' + f.unknowns.map(u => `<li class="warn">⚠ ${esc(u.text)} — ${esc(u.why)}` +
+          (u.look_at ? ` · look at <code>${esc(u.look_at.file)}:${u.look_at.line}</code>` : '') + '</li>').join('') + '</ul>'
       : '<p class="none">none</p>');
     body.push(`<pre class="mermaid">${esc(mermaidSequence(f))}</pre></section>`);
     sections.push(body.join(''));
