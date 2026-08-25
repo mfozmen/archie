@@ -24,6 +24,7 @@ jobs:
     # exposed to forked PRs.
     if: >
       ( github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
         github.event.pull_request.head.repo.full_name == github.repository ) ||
       ( github.event_name == 'issue_comment' &&
         github.event.issue.pull_request != null &&
@@ -62,7 +63,11 @@ jobs:
               findings on specific changed lines.
             - Use `gh pr comment` for ONE concise top-level summary. ALWAYS post
               it, even if nothing is notable (say so briefly), so the run leaves a
-              visible result.
+              visible result. Post it EARLY — as soon as you have read the diff
+              and formed a view — rather than saving it for last. This job has a
+              wall-clock timeout and a concurrency cancel; a review that does all
+              the work and then gets killed before commenting is worse than a
+              slightly less polished summary that actually lands.
 
             Archie is half deterministic Node scripts under `scripts/`, half
             prompt surfaces (`skills/`, `agents/`). The design spec is
@@ -101,4 +106,4 @@ jobs:
 
             Spend turns economically: fetch the diff once with `gh pr diff` and
             don't re-fetch; leave inline comments only for the most important
-            issues; post the single summary comment last so it always lands.
+            issues.
