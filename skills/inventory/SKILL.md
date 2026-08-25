@@ -39,9 +39,12 @@ From the fingerprint, write `.archie/recipe.json`:
 
 `kind` is one of `http`, `queue`, `cron`, `cli`, `event`, `public-api`. Write it with:
 
+Write it to a file, then store it. **Always via a file, never as a command-line
+argument** — a route label or a pattern containing a quote would break the shell
+before node ever saw it, and a real model runs to hundreds of entries.
+
 ```bash
-node -e 'require(process.argv[1]+"/scripts/lib/model").saveRecipe(process.argv[2], JSON.parse(process.argv[3]))' \
-  "${CLAUDE_PLUGIN_ROOT}" "$root" "$RECIPE_JSON"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe /tmp/archie-recipe.json
 ```
 
 Show the recipe to the user. It is hand-editable, and `/archie:recipe "<hint>"`
@@ -83,19 +86,18 @@ so far.
 emit `coverage: "none"` with an empty `watch[]`, so overwriting would silently
 erase every flow `/archie:explain` has proved. Merge:
 
+Write the discovered set to a file, then merge:
+
 ```bash
-node -e '
-  const M = require(process.argv[1]+"/scripts/lib/model");
-  const r = M.mergeModel(M.loadModel(process.argv[2]), JSON.parse(process.argv[3]));
-  M.saveModel(process.argv[2], r.model);
-  console.log(JSON.stringify({added: r.added, kept: r.kept, disappeared: r.disappeared}, null, 2));
-' "${CLAUDE_PLUGIN_ROOT}" "$root" "$DISCOVERED_JSON"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" merge-inventory /tmp/archie-discovered.json
 ```
+
+It prints `{added, kept, disappeared}`.
 
 `mergeModel` gives discovery the last word on **where** an entry point is (a moved
 route gets its new `file:line`) and the existing model the last word on what has
 been **learned** about it (`coverage`, `traced_at_sha`, `watch[]` all survive).
-`saveModel` then validates and will reject a record missing evidence, or two ids
+`store.js` validates and will reject a record missing evidence, or two ids
 that collide on one flow filename. Fix the data, never the validator.
 
 Each disappeared entry is also written into `model.unknowns` by the merge, so it

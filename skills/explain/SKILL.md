@@ -74,12 +74,37 @@ those claims, then stop. One round, plus one fix round. Not a loop.
 
 Strip `_verifier_log` (show it to the user, do not save it), then:
 
-- `saveFlow(root, flow)` — writes `.archie/flows/<slug>.json`.
-- Set the entry's `coverage` to `"traced"`, its `traced_at_sha` to
-  `git -C "$root" rev-parse HEAD`, and its `watch[]` to every file the tracer
-  reported opening. `watch[]` is what makes staleness detection work later; an
-  empty one means this flow will never be noticed going out of date.
-- `saveModel(root, model)`.
+Write each JSON to a file and store it — via a file, never as a command-line
+argument, since a claim like "it's rejected" would break a shell-quoted one:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow  /tmp/archie-flow.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" model /tmp/archie-model.json
+```
+
+Before writing the model, update this entry in it:
+
+- `coverage` → `"traced"`.
+- `traced_at_sha` → `git -C "$root" rev-parse HEAD`.
+- `watch[]` → **do not hand-build this.** Derive it from the flow so it cannot be
+  forgotten or half-filled:
+
+  ```bash
+  node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').watchFromFlow(require('/tmp/archie-flow.json')).join('\n')"
+  ```
+
+  It returns every file the page cites — from a claim, from a test, from a
+  `look_at`. **This is the field that makes staleness work.** An empty `watch[]`
+  means the flow will never be noticed going out of date, and the page will
+  quietly rot while claiming to be current.
+
+  It undercounts on purpose: a file the tracer opened and cited nothing from is
+  not in it. No claim depends on such a file, so a change there cannot falsify the
+  page — but it could hide new behavior the page ought to mention, and nothing
+  will flag that. Say so if the user asks what staleness does and does not catch.
+
+Use `model`, not `merge-inventory`: you are editing one entry of the model you
+just read, not folding in a fresh discovery pass.
 
 ## 5. Show it
 

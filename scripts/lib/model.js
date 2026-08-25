@@ -113,6 +113,27 @@ function readFlow(root, name) {
 // An entry the sweep no longer finds is kept and reported, not dropped. It could
 // be a deleted route — or a renamed one, or a recipe that just regressed. Which
 // of those it is, only a human can say, so the honest move is to say so.
+// watch[] is the whole of staleness: an entry with an empty one is never noticed
+// going out of date, and its page rots while still claiming to be current. So it
+// is derived from the flow rather than left to whoever writes the skill to
+// remember — every file the page cites, from a claim, a test, or a look_at.
+//
+// This undercounts by design: a file the tracer opened and cited nothing from is
+// not here. No claim depends on it, so a change there cannot falsify the page —
+// but it could hide a NEW behavior the page ought to mention, and nothing will
+// flag that. The honest direction to be wrong in, and stated so it is not
+// mistaken for completeness.
+function watchFromFlow(flow) {
+  const files = new Set();
+  for (const key of ANSWER_KEYS)
+    for (const c of flow.answers?.[key] || []) {
+      if (c.evidence?.file) files.add(c.evidence.file);
+      for (const t of c.tests || []) if (t.file) files.add(t.file);
+    }
+  for (const u of flow.unknowns || []) if (u.look_at?.file) files.add(u.look_at.file);
+  return [...files].sort();
+}
+
 const MERGE_SOURCE = 'inventory-merge';
 function mergeModel(existing, discovered) {
   const prev = new Map((existing?.entries || []).map(e => [e.id, e]));
@@ -158,7 +179,7 @@ function mergeModel(existing, discovered) {
 }
 
 module.exports = {
-  ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe, mergeModel,
+  ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe, mergeModel, watchFromFlow,
   loadModel: (root) => readJson(dir(root, 'model.json')),
   saveModel: (root, m) => { validateModel(m); writeJson(dir(root, 'model.json'), m); },
   loadFlow: (root, id) => readFlow(root, slug(id) + '.json'),

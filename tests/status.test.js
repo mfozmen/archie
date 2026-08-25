@@ -60,3 +60,23 @@ test('no recipe means no drift claim, not a drift of zero', () => {
   M.saveModel(root, { version: 1, unknowns: [], entries: [] });
   assert.strictEqual(statusReport(root).inventoryDrift, null);
 });
+
+test('a long drift list is capped, and says how many it did not print', () => {
+  const { root } = makeTempRepo();
+  for (let i = 0; i < 15; i++) write(root, `routes/r${i}.php`, "<?php\nRoute::get('/x', 'C@i');\n");
+  commitAll(root, 'many routes');
+  M.saveRecipe(root, { stack: 'generic', probes: [
+    { kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' } ] });
+  M.saveModel(root, { version: 1, unknowns: [], entries: [] });
+
+  const r = statusReport(root);
+  // The report itself keeps everything — the cap is a printing concern, and a
+  // caller that wants the whole list must be able to get it.
+  assert.strictEqual(r.inventoryDrift.unrepresented.length, 15);
+
+  const out = require('node:child_process').execFileSync(process.execPath,
+    [require('node:path').join(__dirname, '..', 'scripts', 'status.js'), root], { encoding: 'utf8' });
+  const listed = out.split('\n').filter(l => /^ {2}http: /.test(l));
+  assert.strictEqual(listed.length, 10);
+  assert.match(out, /5 more not shown/);
+});

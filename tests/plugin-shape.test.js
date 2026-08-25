@@ -46,3 +46,19 @@ test('the focus hint is documented as steering, never as evidence', () => {
   }
   assert.match(fs.readFileSync(path.join(root, 'commands', 'explain.md'), 'utf8'), /focus/i);
 });
+
+// Every write to .archie/ goes through store.js, from a file. Inline `node -e`
+// with JSON in argv breaks on the first apostrophe in a route label or a claim.
+test('no skill writes to .archie by hand', () => {
+  for (const s of SURFACES) {
+    const skill = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    assert.ok(!/node -e/.test(skill), s + ' must not inline a node -e writer');
+    // node -p is allowed, but only to READ. The moment it saves, it is passing
+    // data on a command line again, which is the thing store.js exists to stop.
+    for (const m of skill.matchAll(/node -p [^\n]+/g))
+      assert.ok(!/save/i.test(m[0]), `${s}: node -p must not write (${m[0].slice(0, 60)})`);
+    for (const m of skill.matchAll(/store\.js"? "\$root" (\S+)/g))
+      assert.ok(['recipe', 'config', 'model', 'flow', 'merge-inventory'].includes(m[1]),
+        `${s}: store.js target "${m[1]}" is not one store.js accepts`);
+  }
+});
