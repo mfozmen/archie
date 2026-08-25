@@ -7,7 +7,11 @@
 set -euo pipefail
 scan="$(cd "$(dirname "$0")" && pwd)/leak-scan.sh"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-cd "$tmp" && git init -q && git commit -q --allow-empty -m init
+cd "$tmp" && git init -q
+git config user.email "test@example.com"
+git config user.name "Test"
+git config commit.gpgsign false
+git commit -q --allow-empty -m init
 
 run() { LEAK_PATTERNS_FILE="${1:-$tmp/.leak-patterns}" bash "$scan" >/dev/null 2>&1; }
 
