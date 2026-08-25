@@ -62,3 +62,12 @@ test('a non-array tests[] on a claim is rejected, not crashed on', () => {
     entry: [{ text: 't', evidence: { file: 'a.php', line: 1 }, tests: 'nope' }] } }),
     /answers\.entry\[0\]\.tests: must be an array/);
 });
+
+test('two entries that collide on one flow filename are rejected', () => {
+  const dup = (id) => ({ ...entry, id });
+  assert.throws(() => M.validateModel({ version: 1, unknowns: [], entries: [dup('a.b'), dup('a.b')] }),
+    /duplicate id "a\.b"/);
+  // Distinct ids, same slug — the silent-overwrite case.
+  assert.throws(() => M.validateModel({ version: 1, unknowns: [], entries: [dup('a.b'), dup('a/b')] }),
+    /both map to flows\/a-b\.json/);
+});
