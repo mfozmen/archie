@@ -23,3 +23,10 @@ test('node + compose + procfile fingerprint', () => {
   assert.strictEqual(kinds.web, 'web'); assert.strictEqual(kinds.worker, 'worker'); assert.strictEqual(kinds.cron, 'cron');
   assert.ok(fp.processes.some(p => p.name === 'api'));
 });
+
+test('a compose file without services: does not suppress a later valid one', () => {
+  const { root } = makeTempRepo();
+  write(root, 'docker-compose.yml', 'version: "3"\n');           // legacy, no services:
+  write(root, 'compose.yml', 'services:\n  api:\n    build: .\n');
+  assert.ok(fingerprint(root).processes.some(p => p.name === 'api'));
+});

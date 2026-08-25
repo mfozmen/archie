@@ -39,7 +39,9 @@ function fingerprint(root) {
     // ponytail: 2-space-indent service scan, not a YAML parser — upgrade if real files break it
     const lines = compose.split('\n');
     const svcIdx = lines.findIndex(l => /^services:\s*$/.test(l));
-    if (svcIdx === -1) break;
+    // continue, not break: a first candidate without a services: key must not
+    // suppress a valid compose file later in the list.
+    if (svcIdx === -1) continue;
     let current = null;
     for (const l of lines.slice(svcIdx + 1)) {
       if (/^\S/.test(l)) break;
