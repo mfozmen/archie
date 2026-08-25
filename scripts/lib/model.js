@@ -104,8 +104,50 @@ function readFlow(root, name) {
   return flow;
 }
 
+// Re-running the inventory must never cost you a trace. Workers only ever emit
+// coverage:'none' with an empty watch[], so writing their output straight over
+// model.json would silently erase every flow `explain` proved. Merge instead:
+// discovery owns where the entry point IS, the existing model owns what we have
+// LEARNED about it.
+//
+// An entry the sweep no longer finds is kept and reported, not dropped. It could
+// be a deleted route — or a renamed one, or a recipe that just regressed. Which
+// of those it is, only a human can say, so the honest move is to say so.
+const MERGE_SOURCE = 'inventory-merge';
+function mergeModel(existing, discovered) {
+  const prev = new Map((existing?.entries || []).map(e => [e.id, e]));
+  const found = new Set(discovered.map(e => e.id));
+  const added = [], kept = [];
+  const entries = discovered.map(d => {
+    const old = prev.get(d.id);
+    if (!old) { added.push(d.id); return d; }
+    kept.push(d.id);
+    // Discovery wins on location and label; the trace wins on everything it earned.
+    // handler is discovery's field outright, including when it goes away: a route
+    // that now dispatches to a closure has no handler, and keeping the old one
+    // would present a stale reading as current.
+    const merged = { ...old, kind: d.kind, label: d.label, evidence: d.evidence };
+    if (d.handler) merged.handler = d.handler; else delete merged.handler;
+    return merged;
+  });
+  const disappeared = [];
+  for (const [id, old] of prev) if (!found.has(id)) { disappeared.push(id); entries.push(old); }
+  // Reported on stdout, a vanished entry point survives exactly as long as the
+  // console scrollback. Persist it as an unknown instead, so it reaches
+  // open-questions.md and the status count. Regenerated from scratch every run:
+  // no duplicates on a re-run, and it clears itself the moment the route is
+  // found again. Human-written unknowns are never touched.
+  const unknowns = (existing?.unknowns || []).filter(u => u.source !== MERGE_SOURCE);
+  for (const id of disappeared) unknowns.push({
+    text: `${prev.get(id).label} is in the inventory but the sweep no longer finds it.`,
+    why: 'A deleted route, a renamed one, and a recipe that stopped matching look identical from here — only a human can say which.',
+    source: MERGE_SOURCE,
+  });
+  return { model: { version: 1, unknowns, entries }, added, kept, disappeared };
+}
+
 module.exports = {
-  ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe,
+  ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe, mergeModel,
   loadModel: (root) => readJson(dir(root, 'model.json')),
   saveModel: (root, m) => { validateModel(m); writeJson(dir(root, 'model.json'), m); },
   loadFlow: (root, id) => readFlow(root, slug(id) + '.json'),

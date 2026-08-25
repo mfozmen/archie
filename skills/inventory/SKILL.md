@@ -67,15 +67,48 @@ Read `.archie/sweep.json` and dispatch the **inventory-worker** agent:
 
 Give each worker the repo root and its batch verbatim. Workers return **only** a
 JSON array of entry-point records; raw source never enters this conversation.
-Merge the arrays and save:
+
+Concatenate the workers' arrays into one discovered set — call it
+`$DISCOVERED_JSON` below.
+
+**Every dispatch must have returned before you merge.** The merge in Step 4
+compares the discovered set against the whole existing model, so a partial set
+makes every entry point that a missing worker would have reported look like it
+vanished from the codebase. If any dispatch failed or returned something that is
+not a JSON array, say so and stop — re-run that batch. Never merge what you have
+so far.
+## Step 4 — merge into what is already known
+
+**Never write the workers' output straight over `model.json`.** Workers only ever
+emit `coverage: "none"` with an empty `watch[]`, so overwriting would silently
+erase every flow `/archie:explain` has proved. Merge:
 
 ```bash
-node -e 'require(process.argv[1]+"/scripts/lib/model").saveModel(process.argv[2], JSON.parse(process.argv[3]))' \
-  "${CLAUDE_PLUGIN_ROOT}" "$root" "$MODEL_JSON"
+node -e '
+  const M = require(process.argv[1]+"/scripts/lib/model");
+  const r = M.mergeModel(M.loadModel(process.argv[2]), JSON.parse(process.argv[3]));
+  M.saveModel(process.argv[2], r.model);
+  console.log(JSON.stringify({added: r.added, kept: r.kept, disappeared: r.disappeared}, null, 2));
+' "${CLAUDE_PLUGIN_ROOT}" "$root" "$DISCOVERED_JSON"
 ```
 
-`saveModel` validates and will reject a record missing evidence, or two ids that
-collide on one flow filename. Fix the data, never the validator.
+`mergeModel` gives discovery the last word on **where** an entry point is (a moved
+route gets its new `file:line`) and the existing model the last word on what has
+been **learned** about it (`coverage`, `traced_at_sha`, `watch[]` all survive).
+`saveModel` then validates and will reject a record missing evidence, or two ids
+that collide on one flow filename. Fix the data, never the validator.
+
+Each disappeared entry is also written into `model.unknowns` by the merge, so it
+reaches `open-questions.md` and the `status` count rather than living only in this
+conversation's scrollback. It clears itself as soon as the sweep finds the entry
+point again.
+
+**Report all three buckets, and report `disappeared` loudly.** An entry point that
+was in the model and is no longer found by the sweep is one of three things and
+only a human can say which: the route was deleted, the route was renamed, or the
+recipe just regressed. Archie keeps the entry rather than dropping it, names it,
+and says exactly that — a silently shrinking inventory is the worst possible
+outcome, because it looks like progress.
 
 ## Bootstrap mode — when every probe returns zero
 
