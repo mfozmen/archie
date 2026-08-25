@@ -22,7 +22,10 @@ function makeTempRepo() {
   execFileSync('git', ['init', '-q', root]);
   git(root, 'config', 'user.email', 'test@example.com');
   git(root, 'config', 'user.name', 'Test');
-  git(root, '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-qm', 'init');
+  // Repo-local, not per-command: commitAll() commits too, and an ambient
+  // global commit.gpgsign=true would fail every one of those.
+  git(root, 'config', 'commit.gpgsign', 'false');
+  git(root, 'commit', '--allow-empty', '-qm', 'init');
   tempRoots.push(root);
   return { root };
 }
