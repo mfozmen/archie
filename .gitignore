@@ -1,0 +1,4 @@
+node_modules/
+.DS_Store
+# local-only leak pattern list — must NEVER be committed
+.leak-patterns
