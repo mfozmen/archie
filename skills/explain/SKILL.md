@@ -74,15 +74,14 @@ those claims, then stop. One round, plus one fix round. Not a loop.
 
 Strip `_verifier_log` (show it to the user, do not save it), then:
 
-Write each JSON to a file and store it — via a file, never as a command-line
+Write the flow to a file and store it — via a file, never as a command-line
 argument, since a claim like "it's rejected" would break a shell-quoted one:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow  /tmp/archie-flow.json
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" model /tmp/archie-model.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow /tmp/archie-flow.json
 ```
 
-Before writing the model, update this entry in it:
+Then, and only then, update this entry in the model:
 
 - `coverage` → `"traced"`.
 - `traced_at_sha` → `git -C "$root" rev-parse HEAD`.
@@ -102,6 +101,12 @@ Before writing the model, update this entry in it:
   not in it. No claim depends on such a file, so a change there cannot falsify the
   page — but it could hide new behavior the page ought to mention, and nothing
   will flag that. Say so if the user asks what staleness does and does not catch.
+
+With all three set, write the model out and store it:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" model /tmp/archie-model.json
+```
 
 Use `model`, not `merge-inventory`: you are editing one entry of the model you
 just read, not folding in a fresh discovery pass.

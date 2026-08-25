@@ -10,7 +10,12 @@ description: Use when someone asks what is in a codebase, what its entry points 
 1. `root="$(git rev-parse --show-toplevel)"`. Not a git repository → say so and stop.
 2. If `$root/.archie/config.json` is missing, ask **one** question: which language
    should the narrative be written in? Guess a default from the repo's README and
-   offer it. Write the answer to `.archie/config.json` as `{"language":"<code>"}`.
+   offer it. Write `{"language":"<code>"}` to a file, then store it — `store.js` is
+   the only thing that writes into `.archie/`, including on the first run:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config /tmp/archie-config.json
+   ```
 3. Narrative text is written in the configured language. Identifiers — file paths,
    route labels, class names, entry-point ids — are **never** translated.
 
