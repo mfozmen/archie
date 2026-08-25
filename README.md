@@ -28,6 +28,16 @@ Two supporting commands: `/archie:recipe` teaches Archie where *your* home-grown
 defines its routes when the built-in detection misses, and `/archie:config` sets preferences
 (output language, etc.) by conversation — you never hand-edit a config file.
 
+When a trace stops short of what you wanted, point it:
+
+```
+/archie:explain "POST /api/orders/{id}/ship" --focus "the retry path through the queue worker"
+```
+
+A hint says where to look, not what to conclude. It buys the tracer's attention, never its
+belief — anything it finds there still needs its own `file:line`, and a hint the code does
+not bear out comes back as an UNKNOWN saying so.
+
 ## How it stays honest
 
 - **A structural model is the single source of truth.** Everything Archie learns lands in

@@ -163,3 +163,23 @@ test('a disappeared entry becomes a persistent unknown, and clears when it retur
   assert.strictEqual(m.unknowns.filter(u => u.source === 'inventory-merge').length, 0);
   assert.ok(m.unknowns.some(u => u.text === human.text));
 });
+
+test('a disappeared entry stops counting as documented', () => {
+  const gone = { id: 'g', kind: 'http', label: 'GET /gone', evidence: [{ file: 'r.php', line: 9 }],
+    coverage: 'traced', traced_at_sha: 'abc', watch: ['a.php'] };
+  const { model } = M.mergeModel({ version: 1, unknowns: [], entries: [gone] }, []);
+  const back = model.entries[0];
+  // Its trace is kept — nothing is destroyed — but the sweep cannot find the
+  // entry point any more, so calling the page current would inflate coverage.
+  assert.strictEqual(back.coverage, 'stale');
+  assert.strictEqual(back.traced_at_sha, 'abc');
+  assert.deepStrictEqual(back.watch, ['a.php']);
+  M.validateModel(model);
+});
+
+test('a disappeared entry that was never traced is left alone', () => {
+  const gone = { id: 'g', kind: 'http', label: 'GET /gone', evidence: [{ file: 'r.php', line: 9 }],
+    coverage: 'none', watch: [] };
+  const { model } = M.mergeModel({ version: 1, unknowns: [], entries: [gone] }, []);
+  assert.strictEqual(model.entries[0].coverage, 'none');
+});

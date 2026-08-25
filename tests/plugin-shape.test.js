@@ -33,3 +33,16 @@ test('no agent is granted a tool that can write', () => {
       assert.ok(!new RegExp('\\b' + banned + '\\b').test(tools), `${a} must not be granted ${banned}`);
   }
 });
+
+// Directing a trace must never become a way to lower the evidence bar: a focus
+// hint says where to look, not what to conclude.
+test('the focus hint is documented as steering, never as evidence', () => {
+  const explain = fs.readFileSync(path.join(root, 'skills', 'explain', 'SKILL.md'), 'utf8');
+  const tracer = fs.readFileSync(path.join(root, 'agents', 'tracer.md'), 'utf8');
+  for (const [name, src] of [['explain skill', explain], ['tracer', tracer]]) {
+    assert.match(src, /focus/i, name + ' documents the focus hint');
+    assert.match(src, /where to look, not what to (conclude|find)/i,
+      name + ' states that a hint is not evidence');
+  }
+  assert.match(fs.readFileSync(path.join(root, 'commands', 'explain.md'), 'utf8'), /focus/i);
+});
