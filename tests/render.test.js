@@ -49,3 +49,22 @@ test('rendering is deterministic', () => {
   const b = R.renderMarkdownPages(model, [flow], fp);
   assert.deepStrictEqual([...a.entries()], [...b.entries()]);
 });
+
+test('openapi draft: paths, params, honest TODOs', () => {
+  const yaml = R.renderOpenapi(model, [flow]);
+  assert.match(yaml, /openapi: 3\.0\.3/);
+  assert.match(yaml, /\/api\/orders\/\{id\}\/ship:/);
+  assert.match(yaml, /post:/);
+  assert.match(yaml, /name: id/);
+  assert.match(yaml, /'202':/);            // from "202 with job id."
+  assert.match(yaml, /TODO: body schema not derivable/);
+  assert.match(yaml, /x-archie-evidence: routes\/api\.php:12/);
+});
+
+test('html wiki is self-contained', () => {
+  const html = R.renderHtml(model, [flow], fp, '/*mermaid-stub*/');
+  assert.match(html, /<pre class="mermaid">/);
+  assert.match(html, /\/\*mermaid-stub\*\//);
+  assert.ok(!/https?:\/\//.test(html.replace(/github\.com\/mfozmen\/archie/g, ''))); // no external URLs
+  assert.match(html, /orders:sync/);       // undocumented entries still listed
+});
