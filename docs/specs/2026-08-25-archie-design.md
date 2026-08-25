@@ -50,6 +50,30 @@ Entry-point record:
 }
 ```
 
+
+Flow record (`flows/<slug>.json` — slug = id lowercased, non-alphanumerics → `-`):
+
+```json
+{
+  "id": "http.POST./api/orders/{id}/ship",
+  "summary": "Queues the order for shipment; returns 202 before any carrier call.",
+  "answers": {
+    "entry":    [ {"text": "...", "evidence": {"file":"...","line":1}, "tests": [{"file":"...","line":1}]} ],
+    "guards":   [],
+    "decisions":[],
+    "data":     [],
+    "boundary": [],
+    "returns":  []
+  },
+  "unknowns": [ {"text": "...", "why": "...", "look_at": {"file":"...","line":1}} ],
+  "traced_at_sha": "a1b2c3d"
+}
+```
+
+Each answer entry is one claim: `text` (narrative, configured language), mandatory
+`evidence`, optional `tests[]` (absence renders as `(untested)`). An empty `guards` array
+is itself rendered ("no guard found ⚠"). Renderers consume exactly this shape.
+
 **Staleness is LLM-free:** `git diff --name-only <traced_at_sha>..HEAD` intersected with
 `watch[]`; any overlap marks the flow `stale`. Deterministic, seconds, zero tokens.
 
@@ -57,7 +81,7 @@ Entry-point record:
 
 ### `/archie:inventory` — "What is in this system?"
 
-Prints a per-kind count of entry points, the top-N by git churn (commits touching their
+Prints a per-kind count of entry points, the top-5 by git churn (commits touching their
 files — churn ranking is free from git and points at the heart of the system), and writes
 `model.json`. Four steps:
 
@@ -144,8 +168,10 @@ question count (`--unknowns` lists them).
 - `/archie:config <request>` changes anything conversationally ("write in Turkish",
   "keep diagram labels in English"); the user never hand-edits the file.
 - Language rule: narrative text follows the configured language; identifiers (paths, file
-  names, symbols, ids) are never translated. Structural model fields are language-neutral,
-  so changing language re-renders without re-analysis.
+  names, symbols, ids) are never translated. Narrative lives in the flow files' `text`
+  fields, so a language change never re-analyzes code — but it does require a cheap LLM
+  pass that re-translates existing `text` fields in place; all structural fields survive
+  untouched.
 - Config lives in-repo (`.archie/config.json`) so teammates cloning the repo share it.
   A user-level default is YAGNI for v1.
 
@@ -180,3 +206,7 @@ UNKNOWNS. Evidence comes from code and tests only — no runtime observation in 
 - **Open-source hygiene is blocking.** See `REVIEW.md` §1: nothing company-, employer-, or
   customer-specific anywhere — files, commit messages, or release notes. All examples
   synthetic (a generic web-shop domain: orders, shipments, notifications).
+- **Runtime.** All deterministic scripts are Node ≥ 18 with **zero npm dependencies**
+  (`mermaid.min.js` is vendored and inlined into the single-file wiki — the no-CDN,
+  works-offline guarantee). The sweep uses `rg --json` when ripgrep is present and falls
+  back to plain recursive grep (degraded: no JSON, no comment filtering) when it is not.
