@@ -1,0 +1,5 @@
+# Vendored third-party bundles: never diffed, never counted as our code.
+# Without -diff, a 3 MB minified file lands in every `git diff` and `gh pr diff`.
+vendor/** -diff linguist-vendored
+# The provenance note is ours and must stay reviewable.
+vendor/README.md diff
