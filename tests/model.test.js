@@ -45,3 +45,14 @@ test('config and recipe round-trip', () => {
   assert.strictEqual(M.loadRecipe(root).probes.length, 1);
   assert.throws(() => M.saveRecipe(root, { stack: 'x', probes: [{ kind: 'http' }] }), /glob|pattern/);
 });
+
+test('malformed answers value is rejected, not crashed on', () => {
+  assert.throws(() => M.validateFlow({ ...flow, answers: { ...flow.answers, guards: null } }),
+    /answers\.guards: must be an array/);
+});
+
+test('a malformed optional look_at is rejected', () => {
+  assert.throws(() => M.validateFlow({ ...flow,
+    unknowns: [{ text: 't', why: 'w', look_at: { file: 'a.php', line: 0 } }] }),
+    /unknowns\[0\]\.look_at/);
+});

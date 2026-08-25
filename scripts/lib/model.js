@@ -41,13 +41,24 @@ function validateFlow(flow) {
   if (!flow?.summary) e.push('summary required');
   const keys = Object.keys(flow?.answers || {}).sort().join(',');
   if (keys !== [...ANSWER_KEYS].sort().join(',')) e.push(`answers must have exactly keys ${ANSWER_KEYS.join(',')}`);
-  else for (const k of ANSWER_KEYS) for (const [i, c] of flow.answers[k].entries()) {
-    if (!c.text) e.push(`answers.${k}[${i}]: text required`);
-    checkLoc(c.evidence, `answers.${k}[${i}]`, e);
-    if (c.tests) c.tests.forEach((t, j) => checkLoc(t, `answers.${k}[${i}].tests[${j}]`, e));
+  else for (const k of ANSWER_KEYS) {
+    // The key-set check above proves the six names are present, not that they
+    // hold arrays. A raw TypeError here would break the "throws listing every
+    // violation" contract on the file that enforces the honesty invariant.
+    if (!Array.isArray(flow.answers[k])) { e.push(`answers.${k}: must be an array`); continue; }
+    for (const [i, c] of flow.answers[k].entries()) {
+      if (!c.text) e.push(`answers.${k}[${i}]: text required`);
+      checkLoc(c.evidence, `answers.${k}[${i}]`, e);
+      if (c.tests) c.tests.forEach((t, j) => checkLoc(t, `answers.${k}[${i}].tests[${j}]`, e));
+    }
   }
   if (!Array.isArray(flow?.unknowns)) e.push('unknowns must be an array');
-  else for (const [i, u] of flow.unknowns.entries()) if (!u.text || !u.why) e.push(`unknowns[${i}]: text and why required`);
+  else for (const [i, u] of flow.unknowns.entries()) {
+    if (!u.text || !u.why) e.push(`unknowns[${i}]: text and why required`);
+    // look_at is optional, but when present it is a citation like any other —
+    // a malformed one must not reach the renderer as if it were evidence.
+    if (u.look_at) checkLoc(u.look_at, `unknowns[${i}].look_at`, e);
+  }
   if (!flow?.traced_at_sha) e.push('traced_at_sha required');
   fail(e);
 }
