@@ -63,3 +63,38 @@ test('a broken probe pattern raises; it is never reported as zero hits', () => {
   const bad = { stack: 'generic', probes: [{ kind: 'http', glob: '**/*.php', pattern: 'Route(?=::)' }] };
   assert.throws(() => sweep(root, bad, { forceGrep: false }), /ripgrep failed/);
 });
+
+// #8: the tracked-file list is spread into rg's argv, which has an OS ceiling.
+test('chunkFiles splits on a byte budget without losing or reordering anything', () => {
+  const { chunkFiles } = require('../scripts/sweep');
+  const files = Array.from({ length: 40 }, (_, i) => `routes/r${String(i).padStart(3, '0')}.php`);
+  for (const budget of [1, 20, 100, 1e9]) {
+    const chunks = chunkFiles(files, budget);
+    assert.ok(chunks.length >= 1, `budget=${budget}: at least one chunk`);
+    assert.deepStrictEqual(chunks.flat(), files, `budget=${budget}: same files, same order`);
+    // A file longer than the whole budget still has to go somewhere: it gets a
+    // chunk to itself rather than being dropped.
+    for (const c of chunks) {
+      const bytes = c.reduce((n, f) => n + Buffer.byteLength(f) + 1, 0);
+      assert.ok(c.length === 1 || bytes <= budget, `budget=${budget}: chunk within budget`);
+    }
+  }
+  assert.deepStrictEqual(chunkFiles([], 100), []);
+});
+
+// Chunking must not change what a sweep returns — same hits, same order,
+// however many chunks the list was split into.
+test('a chunked sweep returns exactly what an unchunked one does', () => {
+  const { root } = makeTempRepo();
+  for (let i = 0; i < 40; i++) {
+    write(root, `routes/r${String(i).padStart(3, '0')}.php`,
+      `<?php\nRoute::get('/r${i}', 'C@i');\n// Route::post('/x','Y@z');\n`);
+  }
+  commitFixture(root);
+  const whole = sweep(root, recipe, { forceGrep: true });
+  assert.strictEqual(whole.hits.length, 40);
+  if (!hasBin('rg')) { console.log('skip: ripgrep absent, chunked rg path unverified'); return; }
+  assert.deepStrictEqual(sweep(root, recipe, { forceGrep: false }).hits, whole.hits);
+  // 30 bytes forces roughly one file per rg invocation.
+  assert.deepStrictEqual(sweep(root, recipe, { forceGrep: false, maxArgvBytes: 30 }).hits, whole.hits);
+});

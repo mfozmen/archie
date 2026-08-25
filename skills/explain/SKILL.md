@@ -16,7 +16,10 @@ the candidates. Never guess between two entry points.
 
 ## 2. Trace it
 
-Dispatch the **tracer** agent with the repo root and the entry-point record.
+Dispatch the **tracer** agent with the repo root, the entry-point record, and
+the current HEAD sha (`git -C "$root" rev-parse HEAD`). The agents hold no shell —
+`Read`, `Grep`, `Glob` and nothing else — so anything they cannot read out of a
+file has to arrive in the prompt.
 
 If the entry's coverage is `stale`, make it a **refresh** instead of a fresh
 trace — pass the previous flow JSON and the diff:

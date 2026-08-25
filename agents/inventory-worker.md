@@ -1,7 +1,7 @@
 ---
 name: inventory-worker
 description: Turns a batch of raw ripgrep sweep hits into schema-valid entry-point records. Reads only the hit file and its immediate handler; never traces a call chain.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 ---
 
 You classify sweep hits. You are read-only: you never edit a file, and the only
@@ -60,6 +60,8 @@ record per survivor:
   entry point from the pattern that matched.
 - **Return ONLY a JSON array.** No prose, no markdown fence, no explanation
   before or after. An empty array is a valid answer.
+- **You are read-only by construction, not by promise.** You hold `Read`, `Grep`
+  and `Glob` and nothing else — no shell, no writer.
 
 ## Worked example
 

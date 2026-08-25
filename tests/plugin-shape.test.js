@@ -20,3 +20,16 @@ test('wiki and status skills forbid LLM content generation', () => {
   for (const s of ['wiki', 'status'])
     assert.match(fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8'), /deterministic|no LLM/i);
 });
+
+// The verifier's whole value is that it is the one step which cannot introduce a
+// fabrication. That guarantee cannot rest on prose alone while the agent holds a
+// tool that writes.
+test('no agent is granted a tool that can write', () => {
+  for (const a of ['inventory-worker', 'tracer', 'verifier']) {
+    const src = fs.readFileSync(path.join(root, 'agents', a + '.md'), 'utf8');
+    const tools = (src.match(/^tools:\s*(.+)$/m) || [])[1];
+    assert.ok(tools, a + ' declares a tools list');
+    for (const banned of ['Bash', 'Write', 'Edit', 'NotebookEdit'])
+      assert.ok(!new RegExp('\\b' + banned + '\\b').test(tools), `${a} must not be granted ${banned}`);
+  }
+});

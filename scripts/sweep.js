@@ -6,6 +6,24 @@ const M = require('./lib/model');
 
 const isComment = (text) => /^\s*(\/\/|#|\*|;|--)/.test(text);
 
+// A repo with tens of thousands of tracked files blows past the OS argv limit
+// (E2BIG) when the whole list is spread into rg's arguments. Chunk instead —
+// deliberately NOT by letting rg walk the tree, which would make the result
+// depend on whether ripgrep is installed. 100 KB is well under every platform's
+// ARG_MAX and leaves room for the environment, which counts toward the same cap.
+const MAX_ARGV_BYTES = 100 * 1024;
+function chunkFiles(files, budget = MAX_ARGV_BYTES) {
+  const chunks = [];
+  let current = [], bytes = 0;
+  for (const f of files) {
+    const size = Buffer.byteLength(f) + 1;               // + the argv separator
+    if (current.length && bytes + size > budget) { chunks.push(current); current = []; bytes = 0; }
+    current.push(f); bytes += size;                      // a single oversized path still gets its own chunk
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
 function trackedFiles(root) {
   return run('git', ['-C', root, 'ls-files']).split('\n').filter(Boolean)
     .filter(f => !f.startsWith(M.ARCHIE_DIR + '/'));
@@ -26,20 +44,26 @@ function grepProbe(root, probe, files) {
 // regex, argv too long, rg crash) is a broken tool, and reporting it as 0 hits
 // would slander the recipe: the CLI would print "recipe may be wrong" when the
 // recipe was fine. Same rule as staleness: unprovable is never "fine".
-function rgProbe(root, probe, files) {
-  let out;
-  try {
-    // --sort path costs rg its parallelism and buys determinism: git ls-files is
-    // already path-sorted, so both sweep paths now emit hits in the same order.
-    out = run('rg', ['--json', '--sort', 'path', '--no-ignore', '--hidden', '-g', probe.glob,
-      '-e', probe.pattern, '--', ...files], { cwd: root });
-  } catch (err) {
-    if (err.status === 1) return [];               // genuinely no matches
-    throw new Error(`ripgrep failed on the ${probe.kind} probe (exit ${err.status ?? err.code}): ${probe.pattern}`);
+function rgProbe(root, probe, files, maxArgvBytes) {
+  const hits = [];
+  // Chunks are path-ordered and --sort path orders within a chunk, so the
+  // concatenation is the same sequence an unchunked run would produce.
+  for (const chunk of chunkFiles(files, maxArgvBytes)) {
+    let out;
+    try {
+      // --sort path costs rg its parallelism and buys determinism: git ls-files is
+      // already path-sorted, so both sweep paths now emit hits in the same order.
+      out = run('rg', ['--json', '--sort', 'path', '--no-ignore', '--hidden', '-g', probe.glob,
+        '-e', probe.pattern, '--', ...chunk], { cwd: root });
+    } catch (err) {
+      if (err.status === 1) continue;              // this chunk genuinely has no matches
+      throw new Error(`ripgrep failed on the ${probe.kind} probe (exit ${err.status ?? err.code}): ${probe.pattern}`);
+    }
+    hits.push(...out.split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(j => j.type === 'match')
+      .map(j => ({ kind: probe.kind, file: j.data.path.text, line: j.data.line_number, text: j.data.lines.text.trim() }))
+      .filter(h => !isComment(h.text)));
   }
-  return out.split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(j => j.type === 'match')
-    .map(j => ({ kind: probe.kind, file: j.data.path.text, line: j.data.line_number, text: j.data.lines.text.trim() }))
-    .filter(h => !isComment(h.text));
+  return hits;
 }
 function sweep(root, recipe, opts = {}) {
   M.validateRecipe(recipe);
@@ -47,7 +71,7 @@ function sweep(root, recipe, opts = {}) {
   const files = trackedFiles(root);   // ONE list for both paths
   const hits = [], counts = [], zeroProbes = [];
   for (const probe of recipe.probes) {
-    const h = useRg ? rgProbe(root, probe, files) : grepProbe(root, probe, files);
+    const h = useRg ? rgProbe(root, probe, files, opts.maxArgvBytes) : grepProbe(root, probe, files);
     hits.push(...h);
     counts.push({ ...probe, hits: h.length });
     if (h.length === 0) zeroProbes.push(probe);
@@ -65,4 +89,4 @@ if (require.main === module) {
   for (const z of res.zeroProbes) console.log(`⚠ 0 hits for ${z.kind} probe — recipe may be wrong; fix with /archie:recipe`);
   console.log(`${res.hits.length} candidate hits → .archie/sweep.json`);
 }
-module.exports = { sweep };
+module.exports = { sweep, chunkFiles, MAX_ARGV_BYTES };
