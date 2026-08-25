@@ -36,6 +36,22 @@ reachable — after a squash-merge, a rebase, or in a shallow clone — is also
 marked stale, because its currency can no longer be proven. Unprovable is never
 reported as fine.
 
+## Inventory drift
+
+Flow staleness catches code moving under a page that was traced. It cannot catch
+a whole entry point being **added**, because nothing watches a file the model has
+never heard of — and "remember to re-run the inventory" is not a mechanism.
+
+So when a recipe exists, `status` re-runs the sweep (ripgrep, no tokens) and asks
+one narrow question: is there a file producing hits of some kind that no entry of
+that kind cites at all? Per **file**, never per line — line numbers shift on every
+edit, and a false "new entry point" every time someone adds an import would make
+the signal worthless.
+
+This **undercounts on purpose**: a new route added to an already-known file will
+not show up. Say that when it matters, rather than letting a clean drift report be
+read as "the inventory is complete".
+
 ## Report
 
 Print the script's output as-is. If anything is stale, the useful next line is
