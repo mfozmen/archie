@@ -10,7 +10,8 @@ Follow the preamble in the `inventory` skill (repo root, config, language rules)
 ## This skill has no LLM step
 
 The report is computed by a script and printed **verbatim**. Do not summarise it,
-re-order it, or add commentary of your own. It is deterministic on purpose: it
+re-order it, or reword any line of it. You may add one line after it pointing at
+the next command; you may not interpret, soften or embellish the numbers. It is deterministic on purpose: it
 costs no tokens, so it can be run on every branch, in a hook, or in CI without
 anyone thinking about it.
 

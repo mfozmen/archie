@@ -22,11 +22,17 @@ If the entry's coverage is `stale`, make it a **refresh** instead of a fresh
 trace — pass the previous flow JSON and the diff:
 
 ```bash
-git -C "$root" diff <traced_at_sha>..HEAD
+git -C "$root" cat-file -e <traced_at_sha>^{commit} && git -C "$root" diff <traced_at_sha>..HEAD
 ```
 
 Refresh must be much cheaper than the first trace, or nobody refreshes and the
 wiki dies. The tracer re-verifies only what the diff touched.
+
+**If `traced_at_sha` is unreachable — after a squash-merge, a rebase, a `git gc`,
+or in a shallow clone — there is no diff to refresh against.** Do not pass a
+partial or empty diff and call the result a refresh: that would carry forward
+claims nobody re-checked. Say plainly that the recorded SHA is gone, and fall
+back to a fresh trace.
 
 ## 3. Verify it adversarially
 
