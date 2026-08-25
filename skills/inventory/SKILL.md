@@ -67,6 +67,16 @@ Read `.archie/sweep.json` and dispatch the **inventory-worker** agent:
 
 Give each worker the repo root and its batch verbatim. Workers return **only** a
 JSON array of entry-point records; raw source never enters this conversation.
+
+Concatenate the workers' arrays into one discovered set — call it
+`$DISCOVERED_JSON` below.
+
+**Every dispatch must have returned before you merge.** The merge in Step 4
+compares the discovered set against the whole existing model, so a partial set
+makes every entry point that a missing worker would have reported look like it
+vanished from the codebase. If any dispatch failed or returned something that is
+not a JSON array, say so and stop — re-run that batch. Never merge what you have
+so far.
 ## Step 4 — merge into what is already known
 
 **Never write the workers' output straight over `model.json`.** Workers only ever

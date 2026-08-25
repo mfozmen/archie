@@ -122,7 +122,12 @@ function mergeModel(existing, discovered) {
     if (!old) { added.push(d.id); return d; }
     kept.push(d.id);
     // Discovery wins on location and label; the trace wins on everything it earned.
-    return { ...old, kind: d.kind, label: d.label, evidence: d.evidence, ...(d.handler ? { handler: d.handler } : {}) };
+    // handler is discovery's field outright, including when it goes away: a route
+    // that now dispatches to a closure has no handler, and keeping the old one
+    // would present a stale reading as current.
+    const merged = { ...old, kind: d.kind, label: d.label, evidence: d.evidence };
+    if (d.handler) merged.handler = d.handler; else delete merged.handler;
+    return merged;
   });
   const disappeared = [];
   for (const [id, old] of prev) if (!found.has(id)) { disappeared.push(id); entries.push(old); }

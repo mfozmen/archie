@@ -129,3 +129,13 @@ test('mergeModel on a first run is just the discovered set', () => {
   assert.strictEqual(model.entries.length, 1);
   assert.deepStrictEqual([added, kept, disappeared], [['x'], [], []]);
 });
+
+test('a handler that disappears is cleared, not carried over', () => {
+  const old = { id: 'x', kind: 'http', label: 'GET /x', evidence: [{ file: 'r.php', line: 1 }],
+    coverage: 'traced', traced_at_sha: 'abc', watch: ['a.php'], handler: 'app/Old.php' };
+  const rediscovered = { id: 'x', kind: 'http', label: 'GET /x',
+    evidence: [{ file: 'r.php', line: 2 }], coverage: 'none', watch: [] };
+  const { model } = M.mergeModel({ version: 1, unknowns: [], entries: [old] }, [rediscovered]);
+  assert.ok(!('handler' in model.entries[0]));
+  assert.strictEqual(model.entries[0].coverage, 'traced');   // the trace still survives
+});
