@@ -36,7 +36,34 @@ the leak) — see the script header for setup.
   or rephrase content breaks its independence.
 - **Rendering stays deterministic.** `wiki`/`status` must remain LLM-free.
 
-## 3. Scope invariants
+## 3. CI and workflow security (blocking)
+
+Archie's own GitHub Actions workflows hold a subscription token and a write-scoped
+`GITHUB_TOKEN`. A change that lets untrusted code reach that runner is **blocking**.
+
+- **Never check out untrusted code into a privileged run.** `pull_request` runs on a fork
+  are unprivileged and safe; `issue_comment` runs are **not** — they execute in the base
+  repository's context, with secrets. Adding a `ref:` that points at a PR head on the
+  `issue_comment` path therefore places fork-authored files — agent instruction files,
+  MCP/tooling config, anything the runner or an agent reads — onto a token-bearing runner.
+- **The same-repo guard is not portable between events.** The `pull_request` path can check
+  `github.event.pull_request.head.repo.full_name == github.repository`. The `issue_comment`
+  payload carries no head-repo field at all, so that guard *cannot* be applied there.
+  `author_association` is not a substitute: it says who commented, not whose code runs.
+  A maintainer commenting on a fork PR is the exact case it fails to catch.
+- **Consequence:** a comment-triggered review reads BASE-branch files. That is a real
+  limitation and the prompt must state it, so the reviewer reasons from the diff and
+  declares file reads as base-branch context. Do not "fix" the limitation by checking out
+  the head — that trade buys evidence quality with token exposure.
+- **`pull_request_target` is likewise off-limits** for the same reason, and for the same
+  seductive reason (it looks like it solves fork PRs).
+
+This section exists because the trap was hit here, in this repo: a low-severity finding
+about evidence quality was "fixed" with a `ref:` that opened token exposure. The fix was
+worse than the finding. When a CI change trades safety for convenience, the safe answer is
+to accept the inconvenience and document it.
+
+## 4. Scope invariants
 
 - Read-only against the analyzed repo (Archie writes only under `.archie/`).
 - Single-repo boundary: outbound calls are labelled boxes, never followed (v1).

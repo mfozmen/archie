@@ -9,7 +9,10 @@
 3. **Honesty invariants are not negotiable.** See [`REVIEW.md`](./REVIEW.md) §2 —
    no claim without evidence, the verifier may only delete or demote, and the
    rendering surfaces stay LLM-free.
-4. **Open-source hygiene is blocking.** Nothing company-, employer-, or
+4. **Workflow changes get security review.** See [`REVIEW.md`](./REVIEW.md) §3.
+   The CI workflows hold real tokens; never check out untrusted code into a
+   privileged run, and never reach for `pull_request_target`.
+5. **Open-source hygiene is blocking.** Nothing company-, employer-, or
    customer-specific anywhere, including commit messages and release notes. All
    examples use a synthetic web-shop domain (orders, shipments, notifications).
    `scripts/leak-scan.sh` runs as a pre-push hook — enable it once with:
