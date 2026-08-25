@@ -31,6 +31,17 @@ function validateModel(model) {
     if (en.coverage !== 'none' && (!en.traced_at_sha || !Array.isArray(en.watch) || en.watch.length === 0))
       e.push(`${w}: traced/stale require traced_at_sha and watch[]`);
   }
+  // Uniqueness is checked on the SLUG, not the id: two distinct ids that flatten
+  // to the same filename would silently overwrite each other's flows/<slug>.json
+  // and merge their trace state — one entry point would inherit another's evidence.
+  const seen = new Map();
+  for (const en of (model?.entries || [])) {
+    if (!en.id) continue;
+    const s = slug(en.id);
+    if (seen.has(s) && seen.get(s) !== en.id) e.push(`entries: "${en.id}" and "${seen.get(s)}" both map to flows/${s}.json`);
+    else if (seen.has(s)) e.push(`entries: duplicate id "${en.id}"`);
+    else seen.set(s, en.id);
+  }
   if (!Array.isArray(model?.unknowns)) e.push('unknowns must be an array');
   fail(e);
 }
