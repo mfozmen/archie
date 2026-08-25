@@ -88,3 +88,44 @@ test('loadFlow validates too', () => {
   fs.writeFileSync(path.join(root, '.archie', 'flows', 'a-b.json'), '{ "id": "a.b" }\n');
   assert.throws(() => M.loadFlow(root, 'a.b'), /a-b\.json/);
 });
+
+test('mergeModel keeps what explain proved and reports what moved', () => {
+  const traced = { id: 'http.GET./a', kind: 'http', label: 'GET /a',
+    evidence: [{ file: 'routes/api.php', line: 10 }], coverage: 'traced',
+    traced_at_sha: 'abc', watch: ['app/A.php'] };
+  const gone = { id: 'http.GET./gone', kind: 'http', label: 'GET /gone',
+    evidence: [{ file: 'routes/api.php', line: 99 }], coverage: 'traced',
+    traced_at_sha: 'abc', watch: ['app/Gone.php'] };
+  const existing = { version: 1, unknowns: [], entries: [traced, gone] };
+
+  // The sweep re-found /a at a new line, and found a brand-new /b.
+  const discovered = [
+    { id: 'http.GET./a', kind: 'http', label: 'GET /a', evidence: [{ file: 'routes/api.php', line: 14 }], coverage: 'none', watch: [] },
+    { id: 'http.GET./b', kind: 'http', label: 'GET /b', evidence: [{ file: 'routes/api.php', line: 20 }], coverage: 'none', watch: [] },
+  ];
+
+  const { model, added, kept, disappeared } = M.mergeModel(existing, discovered);
+  const byId = Object.fromEntries(model.entries.map(e => [e.id, e]));
+
+  // The whole point: a re-run must not throw away a trace.
+  assert.strictEqual(byId['http.GET./a'].coverage, 'traced');
+  assert.strictEqual(byId['http.GET./a'].traced_at_sha, 'abc');
+  assert.deepStrictEqual(byId['http.GET./a'].watch, ['app/A.php']);
+  // ...but the fresh sweep's location wins: the code moved, the citation follows.
+  assert.deepStrictEqual(byId['http.GET./a'].evidence, [{ file: 'routes/api.php', line: 14 }]);
+
+  assert.strictEqual(byId['http.GET./b'].coverage, 'none');
+  // An entry the sweep no longer finds is REPORTED, never silently dropped.
+  assert.ok(byId['http.GET./gone']);
+  assert.deepStrictEqual(added, ['http.GET./b']);
+  assert.deepStrictEqual(kept, ['http.GET./a']);
+  assert.deepStrictEqual(disappeared, ['http.GET./gone']);
+  M.validateModel(model);
+});
+
+test('mergeModel on a first run is just the discovered set', () => {
+  const discovered = [{ id: 'x', kind: 'cli', label: 'x', evidence: [{ file: 'a.php', line: 1 }], coverage: 'none', watch: [] }];
+  const { model, added, kept, disappeared } = M.mergeModel(null, discovered);
+  assert.strictEqual(model.entries.length, 1);
+  assert.deepStrictEqual([added, kept, disappeared], [['x'], [], []]);
+});
