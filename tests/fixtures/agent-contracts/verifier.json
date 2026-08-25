@@ -1,0 +1,104 @@
+{
+  "id": "http.POST./api/orders/{id}/ship",
+  "summary": "Queues the order for shipment; returns 202 before any carrier call.",
+  "answers": {
+    "entry": [
+      {
+        "text": "The route dispatches to ShipController::store.",
+        "evidence": {
+          "file": "routes/api.php",
+          "line": 112
+        }
+      }
+    ],
+    "guards": [],
+    "decisions": [
+      {
+        "text": "Only an order in state draft may ship; anything else is rejected.",
+        "evidence": {
+          "file": "app/Domain/Order/Order.php",
+          "line": 210
+        },
+        "tests": [
+          {
+            "file": "tests/Feature/ShipOrderTest.php",
+            "line": 44
+          }
+        ]
+      }
+    ],
+    "data": [],
+    "boundary": [
+      {
+        "text": "Publishes shipment.dispatch onto the Redis queue.",
+        "evidence": {
+          "file": "app/Domain/Order/Ship.php",
+          "line": 31
+        }
+      }
+    ],
+    "returns": [
+      {
+        "text": "202 with the queued job id.",
+        "evidence": {
+          "file": "app/Http/Controllers/ShipController.php",
+          "line": 40
+        }
+      }
+    ]
+  },
+  "unknowns": [
+    {
+      "text": "Nothing in this repository restricts who may call this route.",
+      "why": "No middleware on the route and no authorization check in the controller; a gateway in front of the service may or may not add one.",
+      "look_at": {
+        "file": "routes/api.php",
+        "line": 112
+      }
+    },
+    {
+      "text": "The queue's retry policy is not visible here.",
+      "why": "Read from an environment variable that is not defined in this repository.",
+      "look_at": {
+        "file": "config/queue.php",
+        "line": 18
+      }
+    },
+    {
+      "text": "Whether shipping stamps orders.shipped_at is not established here.",
+      "why": "The claim cited app/Domain/Order/Ship.php:30, which inserts into shipment_jobs; no write to orders.shipped_at appears at or around that line.",
+      "look_at": {
+        "file": "app/Domain/Order/Ship.php",
+        "line": 30
+      }
+    }
+  ],
+  "traced_at_sha": "a1b2c3d",
+  "_verifier_log": [
+    {
+      "claim": "The route dispatches to ShipController::store.",
+      "action": "confirmed",
+      "reason": "routes/api.php:112 registers POST /orders/{id}/ship against ShipController::store."
+    },
+    {
+      "claim": "Only an order in state draft may ship; anything else is rejected.",
+      "action": "confirmed",
+      "reason": "app/Domain/Order/Order.php:210 throws unless the state is draft; tests/Feature/ShipOrderTest.php:44 exercises the rejection."
+    },
+    {
+      "claim": "Writes a row to shipment_jobs and stamps orders.shipped_at.",
+      "action": "demoted",
+      "reason": "app/Domain/Order/Ship.php:30 inserts into shipment_jobs only; the shipped_at half of the claim is unsupported at the cited line."
+    },
+    {
+      "claim": "Publishes shipment.dispatch onto the Redis queue.",
+      "action": "confirmed",
+      "reason": "app/Domain/Order/Ship.php:31 dispatches shipment.dispatch to the configured queue connection."
+    },
+    {
+      "claim": "202 with the queued job id.",
+      "action": "confirmed",
+      "reason": "app/Http/Controllers/ShipController.php:40 returns response()->json([...], 202) with the job id."
+    }
+  ]
+}

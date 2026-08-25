@@ -1,0 +1,28 @@
+[
+  {
+    "id": "http.POST./api/orders/{id}/ship",
+    "kind": "http",
+    "label": "POST /api/orders/{id}/ship",
+    "evidence": [{ "file": "routes/api.php", "line": 112 }],
+    "coverage": "none",
+    "watch": [],
+    "handler": "app/Http/Controllers/ShipController.php"
+  },
+  {
+    "id": "queue.shipment.notification",
+    "kind": "queue",
+    "label": "shipment.notification",
+    "evidence": [{ "file": "app/Jobs/SendShipmentNotification.php", "line": 14 }],
+    "coverage": "none",
+    "watch": [],
+    "handler": "app/Jobs/SendShipmentNotification.php"
+  },
+  {
+    "id": "cli.orders:sync",
+    "kind": "cli",
+    "label": "orders:sync",
+    "evidence": [{ "file": "app/Console/Commands/SyncOrders.php", "line": 21 }],
+    "coverage": "none",
+    "watch": []
+  }
+]
