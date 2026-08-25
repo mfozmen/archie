@@ -18,7 +18,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      # sweep.js prefers ripgrep and falls back to a JS scan. Without rg installed,
+      # the rg branch and the rg/grep equivalence test skip themselves and CI goes
+      # green over code nobody ran.
+      - name: Install ripgrep
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
       - name: Unit tests
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log
+          if grep -q 'ripgrep absent' test.log; then
+            echo "::error::the ripgrep path skipped itself — CI would be green over code nobody ran"
+            exit 1
+          fi
       - name: Leak scanner self-check
         run: bash scripts/leak-scan.test.sh

@@ -3,3 +3,4 @@ node_modules/
 # local-only leak pattern list — must NEVER be committed
 .leak-patterns
 .claude/settings.local.json
+test.log

@@ -73,6 +73,12 @@ jobs:
             rather than asserting something about a file you could not see at
             its PR-head version.
 
+            Ignore `vendor/` entirely. It holds verbatim third-party bundles
+            (a 3 MB minified mermaid, today) that we did not author and will
+            never edit by hand. Reading one burns the whole turn budget for no
+            finding — check only that a vendored file's provenance is recorded
+            in `vendor/README.md`, and never open the bundle itself.
+
             How to publish your review:
             - Use `mcp__github_inline_comment__create_inline_comment` for concrete
               findings on specific changed lines.
