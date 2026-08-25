@@ -98,6 +98,11 @@ been **learned** about it (`coverage`, `traced_at_sha`, `watch[]` all survive).
 `saveModel` then validates and will reject a record missing evidence, or two ids
 that collide on one flow filename. Fix the data, never the validator.
 
+Each disappeared entry is also written into `model.unknowns` by the merge, so it
+reaches `open-questions.md` and the `status` count rather than living only in this
+conversation's scrollback. It clears itself as soon as the sweep finds the entry
+point again.
+
 **Report all three buckets, and report `disappeared` loudly.** An entry point that
 was in the model and is no longer found by the sweep is one of three things and
 only a human can say which: the route was deleted, the route was renamed, or the

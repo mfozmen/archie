@@ -139,3 +139,27 @@ test('a handler that disappears is cleared, not carried over', () => {
   assert.ok(!('handler' in model.entries[0]));
   assert.strictEqual(model.entries[0].coverage, 'traced');   // the trace still survives
 });
+
+test('a disappeared entry becomes a persistent unknown, and clears when it returns', () => {
+  const gone = { id: 'http.GET./gone', kind: 'http', label: 'GET /gone',
+    evidence: [{ file: 'r.php', line: 9 }], coverage: 'traced', traced_at_sha: 'abc', watch: ['a.php'] };
+  const other = { id: 'http.GET./a', kind: 'http', label: 'GET /a',
+    evidence: [{ file: 'r.php', line: 1 }], coverage: 'none', watch: [] };
+  const human = { text: 'dynamic routes somewhere', why: 'loop-registered' };
+
+  let m = M.mergeModel({ version: 1, unknowns: [human], entries: [gone, other] }, [other]).model;
+  const generated = m.unknowns.filter(u => u.source === 'inventory-merge');
+  assert.strictEqual(generated.length, 1);
+  assert.match(generated[0].text, /GET \/gone/);
+  assert.ok(m.unknowns.some(u => u.text === human.text), 'a human-written unknown is never touched');
+  M.validateModel(m);
+
+  // Re-running must not stack duplicates.
+  m = M.mergeModel(m, [other]).model;
+  assert.strictEqual(m.unknowns.filter(u => u.source === 'inventory-merge').length, 1);
+
+  // The route comes back — the unknown clears itself.
+  m = M.mergeModel(m, [other, gone]).model;
+  assert.strictEqual(m.unknowns.filter(u => u.source === 'inventory-merge').length, 0);
+  assert.ok(m.unknowns.some(u => u.text === human.text));
+});

@@ -113,6 +113,7 @@ function readFlow(root, name) {
 // An entry the sweep no longer finds is kept and reported, not dropped. It could
 // be a deleted route — or a renamed one, or a recipe that just regressed. Which
 // of those it is, only a human can say, so the honest move is to say so.
+const MERGE_SOURCE = 'inventory-merge';
 function mergeModel(existing, discovered) {
   const prev = new Map((existing?.entries || []).map(e => [e.id, e]));
   const found = new Set(discovered.map(e => e.id));
@@ -131,10 +132,18 @@ function mergeModel(existing, discovered) {
   });
   const disappeared = [];
   for (const [id, old] of prev) if (!found.has(id)) { disappeared.push(id); entries.push(old); }
-  return {
-    model: { version: 1, unknowns: existing?.unknowns || [], entries },
-    added, kept, disappeared,
-  };
+  // Reported on stdout, a vanished entry point survives exactly as long as the
+  // console scrollback. Persist it as an unknown instead, so it reaches
+  // open-questions.md and the status count. Regenerated from scratch every run:
+  // no duplicates on a re-run, and it clears itself the moment the route is
+  // found again. Human-written unknowns are never touched.
+  const unknowns = (existing?.unknowns || []).filter(u => u.source !== MERGE_SOURCE);
+  for (const id of disappeared) unknowns.push({
+    text: `${prev.get(id).label} is in the inventory but the sweep no longer finds it.`,
+    why: 'A deleted route, a renamed one, and a recipe that stopped matching look identical from here — only a human can say which.',
+    source: MERGE_SOURCE,
+  });
+  return { model: { version: 1, unknowns, entries }, added, kept, disappeared };
 }
 
 module.exports = {
