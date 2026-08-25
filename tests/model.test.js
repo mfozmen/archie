@@ -56,3 +56,9 @@ test('a malformed optional look_at is rejected', () => {
     unknowns: [{ text: 't', why: 'w', look_at: { file: 'a.php', line: 0 } }] }),
     /unknowns\[0\]\.look_at/);
 });
+
+test('a non-array tests[] on a claim is rejected, not crashed on', () => {
+  assert.throws(() => M.validateFlow({ ...flow, answers: { ...flow.answers,
+    entry: [{ text: 't', evidence: { file: 'a.php', line: 1 }, tests: 'nope' }] } }),
+    /answers\.entry\[0\]\.tests: must be an array/);
+});

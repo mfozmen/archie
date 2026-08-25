@@ -49,7 +49,10 @@ function validateFlow(flow) {
     for (const [i, c] of flow.answers[k].entries()) {
       if (!c.text) e.push(`answers.${k}[${i}]: text required`);
       checkLoc(c.evidence, `answers.${k}[${i}]`, e);
-      if (c.tests) c.tests.forEach((t, j) => checkLoc(t, `answers.${k}[${i}].tests[${j}]`, e));
+      if (c.tests !== undefined) {
+        if (!Array.isArray(c.tests)) e.push(`answers.${k}[${i}].tests: must be an array`);
+        else c.tests.forEach((t, j) => checkLoc(t, `answers.${k}[${i}].tests[${j}]`, e));
+      }
     }
   }
   if (!Array.isArray(flow?.unknowns)) e.push('unknowns must be an array');
