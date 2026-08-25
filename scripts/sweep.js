@@ -29,7 +29,9 @@ function grepProbe(root, probe, files) {
 function rgProbe(root, probe, files) {
   let out;
   try {
-    out = run('rg', ['--json', '--no-ignore', '--hidden', '-g', probe.glob,
+    // --sort path costs rg its parallelism and buys determinism: git ls-files is
+    // already path-sorted, so both sweep paths now emit hits in the same order.
+    out = run('rg', ['--json', '--sort', 'path', '--no-ignore', '--hidden', '-g', probe.glob,
       '-e', probe.pattern, '--', ...files], { cwd: root });
   } catch (err) {
     if (err.status === 1) return [];               // genuinely no matches

@@ -32,15 +32,25 @@ test('sweep finds hits, filters comments, reports zero-probes', () => {
 });
 
 // The equivalence test: without it, "same model in -> same output out" is a wish.
+// Multi-file on purpose: with one file, any hit order looks deterministic, so a
+// single-file fixture cannot catch rg parallelising the file list out of order.
 test('rg and grep paths agree on the same fixture', () => {
   const { root } = makeTempRepo();
-  write(root, 'routes/api.php',
-    "<?php\nRoute::get('/orders', 'C@i');\n// Route::post('/x','Y@z');\n");
+  for (const name of ['api', 'admin', 'internal', 'public', 'webhooks']) {
+    write(root, `routes/${name}.php`,
+      `<?php\nRoute::get('/${name}/orders', 'C@i');\n// Route::post('/x','Y@z');\nRoute::post('/${name}/orders', 'C@s');\n`);
+  }
   commitFixture(root);
   const viaGrep = sweep(root, recipe, { forceGrep: true });
-  assert.strictEqual(viaGrep.hits.length, 1);
+  assert.strictEqual(viaGrep.hits.length, 10);
   if (!hasBin('rg')) { console.log('skip: ripgrep absent, rg path unverified'); return; }
-  assert.deepStrictEqual(viaGrep.hits, sweep(root, recipe, { forceGrep: false }).hits);
+  const viaRg = sweep(root, recipe, { forceGrep: false }).hits;
+  assert.deepStrictEqual(viaGrep.hits, viaRg);
+  // States the contract outright. Whether rg happens to parallelise this fixture
+  // out of order is scheduling-dependent and cannot be forced from a test, so the
+  // equivalence check above can pass by luck; this cannot.
+  const key = (h) => `${h.file}:${String(h.line).padStart(6, '0')}`;
+  assert.deepStrictEqual(viaRg.map(key), [...viaRg.map(key)].sort());
 });
 
 // A tool failure must never masquerade as an honest zero.

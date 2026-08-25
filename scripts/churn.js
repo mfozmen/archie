@@ -24,7 +24,10 @@ if (require.main === module) {
   const root = process.argv[2] || process.cwd();
   const model = M.loadModel(root);
   if (!model) { console.error('no model — run /archie:inventory'); process.exit(1); }
-  const files = [...new Set(model.entries.flatMap(e => e.evidence.map(v => v.file)))];
+  // Both halves of what rankEntries scores: evidence locations AND the literal
+  // (non-glob) watch paths a traced entry carries, or watch files score 0.
+  const files = [...new Set(model.entries.flatMap(e =>
+    [...e.evidence.map(v => v.file), ...e.watch.filter(w => !w.includes('*'))]))];
   const top = rankEntries(model, fileChurn(root, files));
   top.forEach((t, i) => console.log(`${i + 1}. ${t.label}  · ${t.commits} commits · ${t.evidence.file}:${t.evidence.line}`));
 }
