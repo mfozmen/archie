@@ -71,3 +71,20 @@ test('two entries that collide on one flow filename are rejected', () => {
   assert.throws(() => M.validateModel({ version: 1, unknowns: [], entries: [dup('a.b'), dup('a/b')] }),
     /both map to flows\/a-b\.json/);
 });
+
+test('a corrupt flow file is named, not rendered and not swallowed', () => {
+  const { root } = makeTempRepo();
+  M.saveFlow(root, flow);
+  fs.writeFileSync(path.join(root, '.archie', 'flows', 'broken.json'), '{ "id": "x" }\n');
+  assert.throws(() => M.listFlows(root), /flows\/broken\.json/);
+
+  fs.writeFileSync(path.join(root, '.archie', 'flows', 'broken.json'), 'not json at all');
+  assert.throws(() => M.listFlows(root), /flows\/broken\.json/);
+});
+
+test('loadFlow validates too', () => {
+  const { root } = makeTempRepo();
+  fs.mkdirSync(path.join(root, '.archie', 'flows'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.archie', 'flows', 'a-b.json'), '{ "id": "a.b" }\n');
+  assert.throws(() => M.loadFlow(root, 'a.b'), /a-b\.json/);
+});

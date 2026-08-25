@@ -89,14 +89,29 @@ function validateRecipe(r) {
   fail(e);
 }
 
+// Flows are written by Archie, but a half-written file, a bad merge, or a hand
+// edit would otherwise reach the renderers as if it were proven evidence. Name
+// the file that is wrong; do not skip it silently and do not fail somewhere
+// downstream where the cause is invisible.
+function readFlow(root, name) {
+  const p = dir(root, 'flows', name);
+  if (!fs.existsSync(p)) return null;
+  let flow;
+  try { flow = JSON.parse(fs.readFileSync(p, 'utf8')); }
+  catch (err) { throw new Error(`${ARCHIE_DIR}/flows/${name} is not valid JSON: ${err.message}`); }
+  try { validateFlow(flow); }
+  catch (err) { throw new Error(`${ARCHIE_DIR}/flows/${name} is ${err.message}`); }
+  return flow;
+}
+
 module.exports = {
   ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe,
   loadModel: (root) => readJson(dir(root, 'model.json')),
   saveModel: (root, m) => { validateModel(m); writeJson(dir(root, 'model.json'), m); },
-  loadFlow: (root, id) => readJson(dir(root, 'flows', slug(id) + '.json')),
+  loadFlow: (root, id) => readFlow(root, slug(id) + '.json'),
   saveFlow: (root, f) => { validateFlow(f); writeJson(dir(root, 'flows', slug(f.id) + '.json'), f); },
   listFlows: (root) => fs.existsSync(dir(root, 'flows'))
-    ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).map(n => readJson(dir(root, 'flows', n)))
+    ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).sort().map(n => readFlow(root, n))
     : [],
   loadConfig: (root) => readJson(dir(root, 'config.json')),
   saveConfig: (root, c) => writeJson(dir(root, 'config.json'), c),
