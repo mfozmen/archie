@@ -183,3 +183,21 @@ test('a disappeared entry that was never traced is left alone', () => {
   const { model } = M.mergeModel({ version: 1, unknowns: [], entries: [gone] }, []);
   assert.strictEqual(model.entries[0].coverage, 'none');
 });
+
+test('an entry that vanished and came back stays stale until it is re-checked', () => {
+  const traced = { id: 'g', kind: 'http', label: 'GET /gone', evidence: [{ file: 'r.php', line: 9 }],
+    coverage: 'traced', traced_at_sha: 'abc', watch: ['a.php'] };
+  const rediscovered = { id: 'g', kind: 'http', label: 'GET /gone',
+    evidence: [{ file: 'r.php', line: 3 }], coverage: 'none', watch: [] };
+
+  const afterVanish = M.mergeModel({ version: 1, unknowns: [], entries: [traced] }, []).model;
+  assert.strictEqual(afterVanish.entries[0].coverage, 'stale');
+
+  const afterReturn = M.mergeModel(afterVanish, [rediscovered]).model;
+  // Deliberately NOT back to 'traced'. A route that disappeared and returned was
+  // deleted and re-added, renamed twice, or moved — the old page describes code
+  // nobody re-checked. It stays stale so explain refreshes it against the diff.
+  assert.strictEqual(afterReturn.entries[0].coverage, 'stale');
+  assert.strictEqual(afterReturn.entries[0].traced_at_sha, 'abc');
+  assert.deepStrictEqual(afterReturn.entries[0].evidence, [{ file: 'r.php', line: 3 }]);
+});
