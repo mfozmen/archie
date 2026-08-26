@@ -110,3 +110,22 @@ test('render sends a configured output to the workspace, never into the repo', (
   assert.ok(fs.existsSync(path.join(workspace, 'system-map', 'md')), 'wiki belongs in the workspace');
   assert.deepStrictEqual(fs.readdirSync(repo).sort(), before, 'the repository must be untouched');
 });
+
+// A message that names a path is only worth printing if it is the path the file
+// is actually at. Once --store exists, "no .archie/model.json" sends someone to
+// look in a directory Archie never wrote to.
+test('a missing store file is reported at the path it was actually looked for', () => {
+  const { root: repo } = makeTempRepo();
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
+  const store = M.storeFor(repo, workspace);
+  const err = [];
+  const real = console.error;
+  console.error = (...a) => err.push(a.join(' '));
+  let code;
+  try { code = require('../scripts/staleness').main([repo, '--workspace', workspace]); }
+  finally { console.error = real; }
+
+  assert.strictEqual(code, 1);
+  assert.ok(err.join('\n').includes(path.join(store, 'model.json')),
+    `error names the wrong path: ${err.join('\n')}`);
+});

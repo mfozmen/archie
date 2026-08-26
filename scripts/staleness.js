@@ -1,3 +1,4 @@
+const path = require('node:path');
 const { tryRun, gitLines } = require('./lib/exec');
 const M = require('./lib/model');
 const { runMain, paths } = require('./lib/cli');
@@ -33,7 +34,7 @@ function markStale(model, changed) {
 function main(args) {
   const { repo, store } = paths(args);
   const model = M.loadModel(store);
-  if (!model) { console.error('no .archie/model.json — run /archie:inventory first'); return 1; }
+  if (!model) { console.error(`no ${path.join(store, 'model.json')} — run /archie:inventory first`); return 1; }
   const perEntry = new Map(model.entries.filter(e => e.coverage === 'traced')
     .map(e => [e.id, changedFilesSince(repo, e.traced_at_sha)]));
   const staled = [];

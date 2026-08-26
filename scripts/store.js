@@ -12,10 +12,10 @@ const { runMain, paths } = require('./lib/cli');
 
 const USAGE = `usage: store.js <root> <what> <file.json> [--store <dir>]
   --store <dir>     where to write; defaults to <root>/.archie
-  recipe            validate and write .archie/recipe.json
-  config            write .archie/config.json
-  model             validate and write .archie/model.json (OVERWRITES — see merge-inventory)
-  flow              validate and write .archie/flows/<slug>.json
+  recipe            validate and write recipe.json into the store
+  config            write config.json into the store
+  model             validate and write model.json into the store (OVERWRITES — see merge-inventory)
+  flow              validate and write flows/<slug>.json into the store
   merge-inventory   merge a discovered entry array into the existing model,
                     preserving what explain proved; prints {added, kept, disappeared}`;
 

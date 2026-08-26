@@ -89,7 +89,7 @@ function sweep(root, recipe, opts = {}) {
 function main(args) {
   const { repo, store } = paths(args);
   const recipe = M.loadRecipe(store);
-  if (!recipe) { console.error('no .archie/recipe.json — derive one first'); return 1; }
+  if (!recipe) { console.error(`no ${path.join(store, 'recipe.json')} — derive one first`); return 1; }
   const res = sweep(repo, recipe, { scope: M.loadConfig(store)?.scope });
   fs.mkdirSync(store, { recursive: true });
   fs.writeFileSync(path.join(store, 'sweep.json'), JSON.stringify(res.hits, null, 2) + '\n');
@@ -99,7 +99,7 @@ function main(args) {
   for (const z of res.zeroProbes) console.log(res.scoped
     ? `⚠ 0 hits for ${z.kind} probe within the configured scope — either it does not exist in your area, or the recipe is wrong`
     : `⚠ 0 hits for ${z.kind} probe — recipe may be wrong; fix with /archie:recipe`);
-  console.log(`${res.hits.length} candidate hits → .archie/sweep.json`);
+  console.log(`${res.hits.length} candidate hits → ${path.join(store, 'sweep.json')}`);
   return 0;
 }
 runMain(module, main);

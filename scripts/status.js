@@ -1,3 +1,4 @@
+const path = require('node:path');
 const M = require('./lib/model');
 const { changedFilesSince, markStale } = require('./staleness');
 const { sweep } = require('./sweep');
@@ -40,7 +41,7 @@ function inventoryDrift(repo, store, model) {
 
 function statusReport(repo, store = M.storeFor(repo)) {
   const model = M.loadModel(store);
-  if (!model) throw new Error('no .archie/model.json — run /archie:inventory first');
+  if (!model) throw new Error(`no ${path.join(store, 'model.json')} — run /archie:inventory first`);
   for (const en of model.entries)
     if (en.coverage === 'traced') markStale({ entries: [en] }, changedFilesSince(repo, en.traced_at_sha));
   M.saveModel(store, model);
