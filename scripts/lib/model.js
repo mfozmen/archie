@@ -77,6 +77,33 @@ function validateFlow(flow) {
   fail(e);
 }
 
+// The config decides where rendered files are written, so it is the one place a
+// bad value turns into a write outside the repository. Validated like everything
+// else rather than trusted because "the user typed it".
+function validateConfig(c) {
+  const e = [];
+  if (!c || typeof c !== 'object') e.push('config must be an object');
+  if (c?.language !== undefined && typeof c.language !== 'string') e.push('language must be a string');
+  if (c?.output !== undefined) {
+    if (typeof c.output !== 'string' || !c.output) e.push('output must be a non-empty string');
+    else if (path.isAbsolute(c.output) || path.normalize(c.output).split(path.sep)[0] === '..')
+      e.push('output must be a relative path inside the repository');
+    // "." passes both checks above and then renders index.html straight over
+    // whatever the repository keeps at its root.
+    else if (['.', ''].includes(path.normalize(c.output).replace(/[\\/]+$/, '')))
+      e.push('output must be a subdirectory, not the repository root');
+  }
+  if (c?.scope !== undefined) {
+    if (!c.scope || typeof c.scope !== 'object') e.push('scope must be an object');
+    else {
+      if (!Array.isArray(c.scope.paths)) e.push('scope.paths must be an array');
+      else if (c.scope.paths.some(p => typeof p !== 'string' || !p)) e.push('scope.paths must be non-empty strings');
+      if (c.scope.label !== undefined && typeof c.scope.label !== 'string') e.push('scope.label must be a string');
+    }
+  }
+  fail(e);
+}
+
 function validateRecipe(r) {
   const e = [];
   if (!r?.stack) e.push('stack required');
@@ -172,14 +199,14 @@ function mergeModel(existing, discovered) {
   const unknowns = (existing?.unknowns || []).filter(u => u.source !== MERGE_SOURCE);
   for (const id of disappeared) unknowns.push({
     text: `${prev.get(id).label} is in the inventory but the sweep no longer finds it.`,
-    why: 'A deleted route, a renamed one, and a recipe that stopped matching look identical from here — only a human can say which.',
+    why: 'A deleted route, a renamed one, a recipe that stopped matching, and an area that a narrowed scope no longer sweeps all look identical from here — only a human can say which.',
     source: MERGE_SOURCE,
   });
   return { model: { version: 1, unknowns, entries }, added, kept, disappeared };
 }
 
 module.exports = {
-  ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe, mergeModel, watchFromFlow,
+  ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe, validateConfig, mergeModel, watchFromFlow,
   loadModel: (root) => readJson(dir(root, 'model.json')),
   saveModel: (root, m) => { validateModel(m); writeJson(dir(root, 'model.json'), m); },
   loadFlow: (root, id) => readFlow(root, slug(id) + '.json'),
@@ -188,7 +215,14 @@ module.exports = {
     ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).sort().map(n => readFlow(root, n))
     : [],
   loadConfig: (root) => readJson(dir(root, 'config.json')),
-  saveConfig: (root, c) => writeJson(dir(root, 'config.json'), c),
+  saveConfig: (root, c) => { validateConfig(c); writeJson(dir(root, 'config.json'), c); },
+  // Where `wiki` renders to. Defaults under .archie/ so a first run writes
+  // nothing a repository would not expect; configurable because a map nobody
+  // browses is a map nobody reads.
+  outputDir: (root) => {
+    const out = readJson(dir(root, 'config.json'))?.output;
+    return out ? path.join(root, out) : dir(root, 'wiki');
+  },
   loadRecipe: (root) => readJson(dir(root, 'recipe.json')),
   saveRecipe: (root, r) => { validateRecipe(r); writeJson(dir(root, 'recipe.json'), r); },
 };

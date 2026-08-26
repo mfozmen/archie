@@ -56,3 +56,15 @@ test('unrelated change does not stale', () => {
   assert.deepStrictEqual(S.markStale(model, S.changedFilesSince(root, sha)), []);
   assert.strictEqual(model.entries[0].coverage, 'traced');
 });
+
+test('a non-ASCII watched path still goes stale', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/sipariş.php', 'v1');
+  const sha = commitAll(root, 'add');
+  M.saveModel(root, { version: 1, unknowns: [], entries: [{
+    id: 'e1', kind: 'http', label: 'E1', evidence: [{ file: 'app/sipariş.php', line: 1 }],
+    coverage: 'traced', traced_at_sha: sha, watch: ['app/*.php'] }] });
+  write(root, 'app/sipariş.php', 'v2'); commitAll(root, 'change');
+  const model = M.loadModel(root);
+  assert.deepStrictEqual(S.markStale(model, S.changedFilesSince(root, sha)), ['e1']);
+});

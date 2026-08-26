@@ -10,8 +10,38 @@ Follow the preamble in the `inventory` skill (repo root, config, language rules)
 `.archie/config.json` is small and managed here rather than hand-edited:
 
 ```json
-{ "language": "en" }
+{ "language": "en",
+  "output": "docs/system-map",
+  "scope": { "label": "Orders", "paths": ["app/Orders/**", "routes/api.php"] } }
 ```
+
+- **`language`** — the narrative language. Identifiers are never translated.
+- **`scope`** — what the user is responsible for. Narrows the sweep itself, and
+  puts a "not a map of the whole system" banner on every rendered page. Omit it
+  for a whole-repository map.
+- **`output`** — where `wiki` renders to. Defaults to `.archie/wiki/`; must be
+  inside the repository.
+
+## Changing the scope
+
+Re-derive candidates rather than asking the user to type paths from memory:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$root"
+```
+
+Then say plainly what the change means. **Narrowing does not delete anything** —
+entry points already in the model stay, and their traced flows stay; they simply
+stop being re-discovered, and the next `/archie:inventory` will report them as
+`disappeared` because the sweep no longer reaches them. Say that before writing,
+not after. **Widening** costs a re-run of `/archie:inventory` to pick up the
+newly-in-scope area, which merges and preserves existing traces.
+
+## Changing the output directory
+
+Files already rendered to the old location are **not** moved or deleted — Archie
+does not delete things it did not just write. Say where the old ones are and let
+the user remove them.
 
 ## Changing a setting
 

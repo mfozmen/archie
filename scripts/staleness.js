@@ -1,4 +1,4 @@
-const { tryRun } = require('./lib/exec');
+const { tryRun, gitLines } = require('./lib/exec');
 const M = require('./lib/model');
 
 // Returns null when `sha` is unreachable — squash-merge, rebase, `git gc` of an
@@ -6,8 +6,7 @@ const M = require('./lib/model');
 // One rewritten history must degrade ONE entry, never crash the whole report.
 function changedFilesSince(root, sha) {
   if (tryRun('git', ['-C', root, 'cat-file', '-e', `${sha}^{commit}`]) === null) return null;
-  const out = tryRun('git', ['-C', root, 'diff', '--name-only', `${sha}..HEAD`]);
-  return out === null ? null : out.split('\n').filter(Boolean);
+  return gitLines(root, ['diff', '--name-only', `${sha}..HEAD`]);
 }
 function globToRegex(glob) {
   const re = glob.split('**/').map(part =>

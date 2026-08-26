@@ -98,3 +98,35 @@ test('a chunked sweep returns exactly what an unchunked one does', () => {
   // 30 bytes forces roughly one file per rg invocation.
   assert.deepStrictEqual(sweep(root, recipe, { forceGrep: false, maxArgvBytes: 30 }).hits, whole.hits);
 });
+
+test('scope narrows the sweep itself, not the results afterwards', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/Orders/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  write(root, 'app/Billing/api.php', "<?php\nRoute::get('/invoices', 'C@i');\n");
+  commitFixture(root);
+  const wide = { stack: 'generic', probes: [
+    { kind: 'http', glob: 'app/**/*.php', pattern: 'Route::(get|post)' } ] };
+
+  assert.strictEqual(sweep(root, wide, { forceGrep: true }).hits.length, 2);
+  const scoped = sweep(root, wide, { forceGrep: true, scope: { paths: ['app/Orders'] } });
+  assert.deepStrictEqual(scoped.hits.map(h => h.file), ['app/Orders/api.php']);
+  // The probe found nothing IN SCOPE. That is not a broken recipe, and saying so
+  // would send someone off to fix a recipe that is fine.
+  const none = sweep(root, wide, { forceGrep: true, scope: { paths: ['app/Nothing'] } });
+  assert.strictEqual(none.hits.length, 0);
+  assert.strictEqual(none.zeroProbes.length, 1);
+  assert.strictEqual(none.scoped, true);
+});
+
+// git quotes paths outside ASCII by default ("routes/sipari\305\237.php"). Split
+// that on / and you get a path that matches nothing — files silently missing
+// from a sweep, with no error anywhere.
+test('a non-ASCII path is swept, not quietly skipped', () => {
+  const { root } = makeTempRepo();
+  write(root, 'routes/sipariş.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  commitFixture(root);
+  const r = { stack: 'generic', probes: [{ kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' }] };
+  assert.deepStrictEqual(sweep(root, r, { forceGrep: true }).hits.map(h => h.file), ['routes/sipariş.php']);
+  if (hasBin('rg'))
+    assert.deepStrictEqual(sweep(root, r, { forceGrep: false }).hits.map(h => h.file), ['routes/sipariş.php']);
+});

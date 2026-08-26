@@ -18,3 +18,10 @@ test('churn counts commits per file and ranks entries', () => {
   assert.deepStrictEqual(top.map(t => t.id), ['b', 'a']);
   assert.strictEqual(top[0].commits, 3);
 });
+
+test('a non-ASCII path is counted, not silently missed', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/sipariş.php', 'v1'); commitAll(root, 'c1');
+  write(root, 'app/sipariş.php', 'v2'); commitAll(root, 'c2');
+  assert.strictEqual(fileChurn(root, ['app/sipariş.php']).get('app/sipariş.php'), 2);
+});

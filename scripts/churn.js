@@ -6,7 +6,13 @@ function fileChurn(root, files, sinceMonths = 6) {
   const churn = new Map(files.map(f => [f, 0]));
   // %H, not a literal marker: git rejects a --format that is neither a known
   // name nor contains a placeholder. A SHA line can never collide with a path.
-  const log = run('git', ['-C', root, 'log', `--since=${sinceMonths} months ago`, '--name-only', '--format=%H']);
+  //
+  // core.quotePath=false rather than -z: git log's -z changes the record
+  // separator too, and all this parse needs is that a path outside ASCII comes
+  // back as itself instead of "app/sipari\305\237.php", which would match
+  // nothing and undercount the file to zero without saying so.
+  const log = run('git', ['-C', root, '-c', 'core.quotePath=false', 'log',
+    `--since=${sinceMonths} months ago`, '--name-only', '--format=%H']);
   for (const line of log.split('\n')) {
     const f = line.trim();
     if (want.has(f)) churn.set(f, churn.get(f) + 1);

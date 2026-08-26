@@ -87,3 +87,35 @@ test('html wiki is self-contained', () => {
   assert.ok(!/https?:\/\//.test(html.replace(/github\.com\/mfozmen\/archie/g, ''))); // no external URLs
   assert.match(html, /orders:sync/);       // undocumented entries still listed
 });
+
+test('a scoped map says so on every surface it renders', () => {
+  const scope = { label: 'Orders', paths: ['app/Orders/**'] };
+  const pages = R.renderMarkdownPages(model, [flow], fp, scope);
+  const index = pages.get('index.md');
+  assert.match(index, /Orders/);
+  assert.match(index, /scope|scoped/i);
+  assert.match(index, /not a map of the whole system/i);
+  assert.match(R.renderHtml(model, [flow], fp, '', scope), /not a map of the whole system/i);
+  // Unscoped renders carry no such banner — it would be a false caveat.
+  assert.ok(!/not a map of the whole system/i.test(R.renderMarkdownPages(model, [flow], fp).get('index.md')));
+});
+
+test('the scope caveat reaches the pages people actually share', () => {
+  const scope = { label: 'Orders', paths: ['app/Orders/**'] };
+  const pages = R.renderMarkdownPages(model, [flow], fp, scope);
+  // A flow page is linkable on its own and is often the only page a reader opens.
+  assert.match(pages.get('http-post-api-orders-id-ship.md'), /not a map of the whole system/i);
+  assert.match(pages.get('open-questions.md'), /not a map of the whole system/i);
+  assert.match(R.renderOpenapi(model, [flow], scope), /not a map of the whole system/i);
+  // ...and stays absent when there is nothing to caveat.
+  assert.ok(!/not a map of the whole system/i.test(
+    R.renderMarkdownPages(model, [flow], fp).get('http-post-api-orders-id-ship.md')));
+});
+
+test('the plain-text caveat keeps the globs it is quoting', () => {
+  const scope = { label: 'Orders', paths: ['app/Orders/**', 'routes/api.php'] };
+  // De-markdowning by stripping ** turned app/Orders/** into app/Orders/ — a
+  // caveat that misstates the very scope it exists to disclose.
+  for (const out of [R.renderOpenapi(model, [flow], scope), R.renderHtml(model, [flow], fp, '', scope)])
+    assert.match(out, /app\/Orders\/\*\*/);
+});

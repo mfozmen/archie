@@ -33,8 +33,15 @@ explicitly out of scope for v1 (they can later be derived from the same model).
   recipe.json       # search recipe for this stack (model-derived, user-correctable)
   model.json        # entry-point inventory + index — single source of truth
   flows/<id>.json   # one file per traced flow (git-diff friendly)
-  wiki/             # rendered output — gitignored
+  tmp/              # scratch JSON on its way into the store — gitignored
+  wiki/             # rendered output — gitignored; relocatable via config.output
 ```
+
+`config.output` moves the rendered set anywhere inside the repository (`docs/system-map/`,
+say) for teams who want the map browsable, or reviewable in pull requests. It is validated:
+an absolute or escaping path is refused, since this is the one setting that turns into a
+write outside the repo. Everything else in `.archie/` stays where it is — the store is the
+source of truth and is not a matter of preference.
 
 Entry-point record:
 
@@ -182,8 +189,23 @@ question count (`--unknowns` lists them).
 
 ## 5. First run & configuration
 
-- On the first Archie command in a repo without `.archie/config.json`, ask **one** question:
-  output language (suggest a guess from the README's language). Never ask again.
+- On the first Archie command in a repo without `.archie/config.json`, ask **three**
+  questions, once, and never again:
+  1. **Output language** (suggest a guess from the README's language).
+  2. **Scope — what is the user responsible for?** On a large repo, inventorying everything
+     buries the part they own. Archie proposes candidates with the evidence behind each — a
+     `CODEOWNERS` assignment, how many of the user's own commits touched a directory, or, as
+     a last resort, that a directory merely exists — and asks. It never picks one: a scope
+     chosen silently would quietly decide what the map is allowed to contain. "The whole
+     repository" is offered as a real option and is the default when nothing is chosen.
+     Scope narrows the sweep itself, not its results, and **every page rendered under a
+     scope says it is not a map of the whole system**.
+  3. **Where the wiki is written** — defaults to `.archie/wiki/`, and may be any path inside
+     the repository. A map nobody browses is a map nobody reads.
+
+  This is a widening of the original "ask one question" rule, made deliberately: the two
+  added questions decide what the map is allowed to contain and where anyone will find it,
+  and guessing either produces a confidently wrong artifact. They are asked once.
 - `/archie:config <request>` changes anything conversationally ("write in Turkish",
   "keep diagram labels in English"); the user never hand-edits the file.
 - Language rule: narrative text follows the configured language; identifiers (paths, file
@@ -209,7 +231,9 @@ present in every Claude Code install.
 
 **In:** `inventory`, `explain`, `wiki`, `status`, `recipe`, `config`.
 **Out (v2+):** product-facing feature catalog, backlog/epic generation (feeding a grooming
-plugin), multi-repo flow tracing, a "do everything" wrapper command, data-ownership map,
+plugin), multi-repo flow tracing, a "do everything" wrapper command, a data-ownership map (who owns
+which *data* — unrelated to `config.scope`, which merely narrows what this repo's sweep
+looks at),
 feature-flag/dead-code inventory, user-level config defaults.
 
 ## 8. Known limits (contract, not embarrassment)

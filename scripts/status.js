@@ -18,7 +18,9 @@ function inventoryDrift(root, model) {
   const recipe = M.loadRecipe(root);
   if (!recipe) return null;                       // no recipe, no claim to make
   let hits;
-  try { hits = sweep(root, recipe).hits; }
+  // Scoped, or every run would report the whole rest of the repository as drift,
+  // forever, for an inventory that was never meant to cover it.
+  try { hits = sweep(root, recipe, { scope: M.loadConfig(root)?.scope }).hits; }
   catch (err) { return { error: err.message, unrepresented: [] }; }
   const citedByKind = new Map();
   for (const en of model.entries) {
@@ -62,6 +64,13 @@ if (require.main === module) {
   console.log(`${r.total} entry points · ${r.traced} documented (${r.pct}%) · ${r.stale} stale`);
   r.staleIds.forEach(id => console.log(`  stale: ${id}  → refresh with /archie:explain "${id}"`));
   console.log(`${r.unknowns.length} open questions${r.unknowns.length ? ' → --unknowns to list' : ''}`);
+  // Every wiki page says when it is scoped. The terminal report has the same
+  // duty: a clean drift line read as "nothing is missing" is exactly wrong when
+  // the check only ever looked at one directory.
+  const scope = M.loadConfig(root)?.scope;
+  if (scope?.paths?.length)
+    console.log(`scoped to ${scope.label || 'a subset of this repository'} — ${scope.paths.join(', ')}; ` +
+      `everything outside was never swept`);
   const d = r.inventoryDrift;
   if (d?.error) console.log(`inventory drift not checked: ${d.error}`);
   else if (d?.unrepresented.length) {

@@ -80,3 +80,42 @@ test('a long drift list is capped, and says how many it did not print', () => {
   assert.strictEqual(listed.length, 10);
   assert.match(out, /5 more not shown/);
 });
+
+test('drift respects the configured scope', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/Orders/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  write(root, 'app/Billing/api.php', "<?php\nRoute::get('/invoices', 'C@i');\n");
+  commitAll(root, 'routes');
+  M.saveRecipe(root, { stack: 'generic', probes: [
+    { kind: 'http', glob: 'app/**/*.php', pattern: 'Route::(get|post)' } ] });
+  M.saveModel(root, { version: 1, unknowns: [], entries: [] });
+
+  assert.strictEqual(statusReport(root).inventoryDrift.unrepresented.length, 2);
+  M.saveConfig(root, { scope: { label: 'Orders', paths: ['app/Orders'] } });
+  // Billing is not drift. It was never in scope, so it is not something the
+  // inventory is behind on.
+  assert.deepStrictEqual(statusReport(root).inventoryDrift.unrepresented,
+    [{ kind: 'http', file: 'app/Orders/api.php' }]);
+});
+
+test('the status report says when its drift check was scoped', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/Orders/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  write(root, 'app/Billing/api.php', "<?php\nRoute::get('/invoices', 'C@i');\n");
+  commitAll(root, 'routes');
+  M.saveRecipe(root, { stack: 'generic', probes: [
+    { kind: 'http', glob: 'app/**/*.php', pattern: 'Route::(get|post)' } ] });
+  M.saveModel(root, { version: 1, unknowns: [], entries: [
+    { id: 'http.GET./orders', kind: 'http', label: 'GET /orders',
+      evidence: [{ file: 'app/Orders/api.php', line: 2 }], coverage: 'none', watch: [] } ] });
+  M.saveConfig(root, { scope: { label: 'Orders', paths: ['app/Orders'] } });
+
+  const run = () => require('node:child_process').execFileSync(process.execPath,
+    [require('node:path').join(__dirname, '..', 'scripts', 'status.js'), root], { encoding: 'utf8' });
+  // Clean drift under a scope must not read as "nothing missing anywhere".
+  assert.match(run(), /scope/i);
+  assert.match(run(), /Orders/);
+
+  M.saveConfig(root, {});
+  assert.ok(!/scoped to/i.test(run()), 'an unscoped run states no scope');
+});

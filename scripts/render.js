@@ -28,8 +28,11 @@ function claimLine(c) {
   const tests = c.tests?.length ? ' · tests: ' + c.tests.map(cite).join(', ') : ' `(untested)`';
   return `- ${c.text} — ${cite(c.evidence)}${tests}`;
 }
-function flowPage(flow) {
-  const out = [`# ${flow.id}`, '', flow.summary, ''];
+function flowPage(flow, scope) {
+  const note = scopeNote(scope);
+  // On the flow page too, not only the index: a flow page is linkable on its own
+  // and is frequently the only page a reader ever opens.
+  const out = [`# ${flow.id}`, '', ...(note ? ['> ' + note, ''] : []), flow.summary, ''];
   for (const [key, q] of QUESTIONS) {
     out.push(`## ${q}`, '');
     const claims = flow.answers[key];
@@ -43,25 +46,43 @@ function flowPage(flow) {
   out.push('', '```mermaid', mermaidSequence(flow), '```', '');
   return out.join('\n');
 }
-function renderMarkdownPages(model, flows, fp) {
+// A scoped map is a map of one area. Left unsaid, a reader takes an inventory of
+// 12 endpoints as the system having 12 endpoints — the exact wrong belief for a
+// tool that exists to stop people being confidently wrong about a codebase.
+function scopeNote(scope, markdown = true) {
+  if (!scope?.paths?.length) return null;
+  // Built for each medium rather than de-markdowned with a regex: stripping `**`
+  // from the rendered string also ate it out of a glob like app/Orders/**, so the
+  // caveat misstated the very scope it exists to disclose.
+  const b = markdown ? '**' : '';
+  const c = markdown ? '`' : '';
+  const what = scope.label ? `${b}${scope.label}${b}` : 'a subset of this repository';
+  return `Scoped to ${what} — ${scope.paths.map(p => `${c}${p}${c}`).join(', ')}. ` +
+    `This is ${b}not a map of the whole system${b}: anything outside those paths was never swept.`;
+}
+
+function renderMarkdownPages(model, flows, fp, scope) {
   const pages = new Map();
   const flowIds = new Set(flows.map(f => f.id));
   const byId = (a, b) => a.id.localeCompare(b.id);
-  const idx = ['# System map', '', `${model.entries.length} entry points`, '', '| entry point | kind | coverage |', '|---|---|---|'];
+  const note = scopeNote(scope);
+  const idx = ['# System map', ''];
+  if (note) idx.push('> ' + note, '');
+  idx.push(`${model.entries.length} entry points`, '', '| entry point | kind | coverage |', '|---|---|---|');
   for (const en of [...model.entries].sort(byId))
     idx.push(`| ${flowIds.has(en.id) ? `[${en.label}](${slug(en.id)}.md)` : en.label} | ${en.kind} | ${en.coverage} |`);
   const undoc = model.entries.filter(e => e.coverage === 'none');
   if (undoc.length) { idx.push('', '## Not yet documented', ''); undoc.forEach(e => idx.push(`- ${e.label}`)); }
   idx.push('', '```mermaid', mermaidTopology(fp), '```', '');
   pages.set('index.md', idx.join('\n'));
-  const oq = ['# Open questions', ''];
+  const oq = ['# Open questions', '', ...(note ? ['> ' + note, ''] : [])];
   model.unknowns.forEach(u => oq.push(`- [inventory] ${u.text}`));
   const sortedFlows = [...flows].sort(byId);
   for (const f of sortedFlows) f.unknowns.forEach(u => oq.push(`- [${f.id}] ${u.text}`));
   pages.set('open-questions.md', oq.join('\n') + '\n');
   // Sorted, so the Map's own iteration order is a property of the model, not of
   // whatever order listFlows() happened to read the directory in.
-  for (const f of sortedFlows) pages.set(slug(f.id) + '.md', flowPage(f));
+  for (const f of sortedFlows) pages.set(slug(f.id) + '.md', flowPage(f, scope));
   return pages;
 }
 
@@ -71,7 +92,7 @@ function renderMarkdownPages(model, flows, fp) {
 // prove from static evidence is left as a visible TODO rather than invented.
 const yamlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
-function renderOpenapi(model, flows) {
+function renderOpenapi(model, flows, scope) {
   const flowById = new Map(flows.map(f => [f.id, f]));
   const paths = new Map();
   for (const en of [...model.entries].sort((a, b) => a.id.localeCompare(b.id))) {
@@ -82,7 +103,10 @@ function renderOpenapi(model, flows) {
     if (!paths.has(urlPath)) paths.set(urlPath, []);
     paths.get(urlPath).push({ method: method.toLowerCase(), en, flow: flowById.get(en.id) });
   }
-  const out = ['openapi: 3.0.3', 'info:', "  title: 'Archie draft'", "  version: '0.1.0'", 'paths:'];
+  const note = scopeNote(scope);
+  const out = ['openapi: 3.0.3', 'info:', "  title: 'Archie draft'", "  version: '0.1.0'"];
+  if (note) out.push(`  description: ${yamlStr(scopeNote(scope, false))}`);
+  out.push('paths:');
   for (const [urlPath, ops] of paths) {
     out.push(`  ${urlPath}:`);
     const params = [...urlPath.matchAll(/\{([^}]+)\}/g)].map(x => x[1]);
@@ -111,7 +135,7 @@ function renderOpenapi(model, flows) {
 // --- Single-file HTML wiki ---------------------------------------------------
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function renderHtml(model, flows, fp, mermaidJs) {
+function renderHtml(model, flows, fp, mermaidJs, scope) {
   const flowById = new Map(flows.map(f => [f.id, f]));
   const entries = [...model.entries].sort((a, b) => a.id.localeCompare(b.id));
   const nav = [];
@@ -123,7 +147,10 @@ function renderHtml(model, flows, fp, mermaidJs) {
         ` <span class="badge ${esc(en.coverage)}">${esc(en.coverage)}</span></li>`);
     nav.push('</ul>');
   }
-  const sections = [`<section id="overview"><h1>System map</h1><p>${entries.length} entry points</p>` +
+  const note = scopeNote(scope);
+  const sections = [`<section id="overview"><h1>System map</h1>` +
+    (note ? `<p class="warn">${esc(scopeNote(scope, false))}</p>` : '') +
+    `<p>${entries.length} entry points</p>` +
     `<pre class="mermaid">${esc(mermaidTopology(fp))}</pre></section>`];
   for (const f of [...flows].sort((a, b) => a.id.localeCompare(b.id))) {
     const body = [`<section id="${esc(slug(f.id))}"><h2>${esc(f.id)}</h2><p>${esc(f.summary)}</p>`];
@@ -182,8 +209,9 @@ if (require.main === module) {
   const { fingerprint } = require('./fingerprint');
   const flows = M.listFlows(root);
   const fp = fingerprint(root);
-  const pages = renderMarkdownPages(model, flows, fp);
-  const wiki = path.join(root, M.ARCHIE_DIR, 'wiki');
+  const scope = M.loadConfig(root)?.scope;
+  const pages = renderMarkdownPages(model, flows, fp, scope);
+  const wiki = M.outputDir(root);
   const out = path.join(wiki, 'md');
   fs.mkdirSync(out, { recursive: true });
   for (const [name, content] of pages) fs.writeFileSync(path.join(out, name), content);
@@ -195,8 +223,8 @@ if (require.main === module) {
   let mermaidJs = '';
   if (fs.existsSync(vendored)) mermaidJs = fs.readFileSync(vendored, 'utf8');
   else console.error('vendor/mermaid.min.js missing — diagrams will not render in index.html');
-  fs.writeFileSync(path.join(wiki, 'index.html'), renderHtml(model, flows, fp, mermaidJs));
-  fs.writeFileSync(path.join(wiki, 'openapi.yaml'), renderOpenapi(model, flows));
+  fs.writeFileSync(path.join(wiki, 'index.html'), renderHtml(model, flows, fp, mermaidJs, scope));
+  fs.writeFileSync(path.join(wiki, 'openapi.yaml'), renderOpenapi(model, flows, scope));
   console.log(`wiki → ${path.relative(root, path.join(wiki, 'index.html'))}, openapi.yaml`);
 }
 module.exports = { mermaidSequence, mermaidTopology, renderMarkdownPages, renderOpenapi, renderHtml };
