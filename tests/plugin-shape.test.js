@@ -62,3 +62,11 @@ test('no skill writes to .archie by hand', () => {
         `${s}: store.js target "${m[1]}" is not one store.js accepts`);
   }
 });
+
+// A fixed /tmp path collides between two sessions working on two repositories.
+test('scratch files are scoped to the repository', () => {
+  for (const s of SURFACES) {
+    const skill = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    assert.ok(!/\/tmp\/archie/.test(skill), s + ' must not use a fixed /tmp path');
+  }
+});

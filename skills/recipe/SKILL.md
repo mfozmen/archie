@@ -34,7 +34,7 @@ Write the corrected recipe to a file, then store it — via a file, never as a
 command-line argument, since a pattern is full of characters a shell will eat:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe /tmp/archie-recipe.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe "$root"/.archie/tmp/recipe.json
 ```
 
 It rejects a probe missing a `kind`, `glob` or `pattern`, naming the file and the

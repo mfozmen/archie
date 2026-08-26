@@ -14,10 +14,17 @@ description: Use when someone asks what is in a codebase, what its entry points 
    the only thing that writes into `.archie/`, including on the first run:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config /tmp/archie-config.json
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
    ```
 3. Narrative text is written in the configured language. Identifiers — file paths,
    route labels, class names, entry-point ids — are **never** translated.
+
+Scratch JSON goes under `$root/.archie/tmp/` (`mkdir -p` it first), never a fixed
+path in `/tmp`: two
+Archie sessions on two different repositories would otherwise write the same file
+at the same time. (Two sessions on the *same* repository are not supported — they
+would race on `model.json` itself, which no temp path can fix.) `.archie/tmp/` is
+generated, like `.archie/wiki/`, and belongs in `.gitignore`.
 
 ## The rule that outranks everything else
 
@@ -49,7 +56,7 @@ argument** — a route label or a pattern containing a quote would break the she
 before node ever saw it, and a real model runs to hundreds of entries.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe /tmp/archie-recipe.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe "$root"/.archie/tmp/recipe.json
 ```
 
 Show the recipe to the user. It is hand-editable, and `/archie:recipe "<hint>"`
@@ -94,7 +101,7 @@ erase every flow `/archie:explain` has proved. Merge:
 Write the discovered set to a file, then merge:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" merge-inventory /tmp/archie-discovered.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" merge-inventory "$root"/.archie/tmp/discovered.json
 ```
 
 It prints `{added, kept, disappeared}`.

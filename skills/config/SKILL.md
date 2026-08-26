@@ -19,7 +19,7 @@ Read the current config, apply the user's request conversationally, show what wi
 change, then write it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config /tmp/archie-config.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
 ```
 
 ## Changing the language is a translation pass, not a re-trace
@@ -38,7 +38,7 @@ language would spend the whole budget and risk losing evidence, so instead:
 4. Save each flow through `store.js`, which re-validates the shape:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow /tmp/archie-flow.json
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow "$root"/.archie/tmp/flow.json
    ```
 
 Then re-render:
