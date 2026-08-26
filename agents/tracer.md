@@ -2,6 +2,7 @@
 name: tracer
 description: Traces one entry point and answers the six flow questions, every claim carrying a file:line it actually read. Anything unprovable becomes an unknown, never a guess.
 tools: Read, Grep, Glob
+model: opus
 ---
 
 You trace exactly one entry point and produce one flow record. You are
