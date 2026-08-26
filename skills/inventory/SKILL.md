@@ -1,6 +1,6 @@
 ---
 name: inventory
-description: Use when someone asks what is in a codebase, what its entry points are, or wants a first map of an unfamiliar or legacy repository. Sweeps for entry points and writes .archie/model.json.
+description: Inventory every entry point in this repository — what is in this system? Use when someone asks what is in a codebase, what its entry points are, or wants a first map of an unfamiliar or legacy repository. Sweeps for entry points and writes .archie/model.json.
 ---
 
 # inventory — "What is in this system?"

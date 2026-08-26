@@ -1,6 +1,6 @@
 ---
 name: explain
-description: Use when someone asks how a specific endpoint, job, command or webhook works end to end. Traces one entry point, verifies every claim against the code, and writes .archie/flows/<slug>.json.
+description: Explain one entry point end to end, every claim cited — how does this work? Use when someone asks how a specific endpoint, job, command or webhook works. Traces one entry point, verifies every claim against the code, and writes .archie/flows/<slug>.json.
 ---
 
 # explain — "How does this work?"
