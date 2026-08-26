@@ -118,3 +118,15 @@ test('declined is described as a memory of the asking, not a claim about ownersh
   assert.match(pre, /not asked twice|same\s+question is not asked/i);
   assert.match(pre, /not permanent|never a claim about whose/i);
 });
+
+// Every skill uses $repo and $tmp in its commands. The preamble is the only
+// place either is defined, and a command referring to an unset variable does not
+// fail loudly — it writes to a path built from an empty string.
+test('the preamble defines every variable the skills go on to use', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  for (const v of ['repo=', 'ws=', 'tmp=', 'WS=']) assert.ok(pre.includes(v), `preamble never sets ${v}`);
+  // The workspace case has no single repository, so it has to say what $repo
+  // means there rather than leaving it to be guessed from the single-repo line.
+  assert.match(pre, /once per repository|repo="\$ws\//,
+    'the preamble must say what $repo is when there is a workspace');
+});

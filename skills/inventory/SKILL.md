@@ -1,6 +1,6 @@
 ---
 name: inventory
-description: Inventory every entry point in this repository — what is in this system? Use when someone asks what is in a codebase, what its entry points are, or wants a first map of an unfamiliar or legacy repository. Sweeps for entry points and writes .archie/model.json.
+description: Inventory every entry point across the repositories you are responsible for — what is in this system? Use when someone asks what is in a codebase, what its entry points are, or wants a first map of an unfamiliar or legacy system. Sweeps for entry points and writes the model.
 ---
 
 # inventory — "What is in this system?"
@@ -27,9 +27,22 @@ root="$(git rev-parse --show-toplevel 2>/dev/null)"
   ```bash
   ws="$PWD"; WS=(--workspace "$ws")
   ```
+  There is no single `$repo` here. The rest of this skill is written for **one**
+  repository, and in a workspace you run it once per repository in the set,
+  setting `repo="$ws/<name>"` each time. Report per repository as you go rather
+  than only at the end: on a set of any size, a silent run looks like a hung one.
 
 `"${WS[@]}"` goes on **every** script call from here on. It is empty in the
 single case, so one line works for both and neither is a special case.
+
+Scratch JSON goes in `$tmp`, which is that repository's own store — never a
+shared path, or two repositories in one workspace would overwrite each other's
+half-written files:
+
+```bash
+tmp="$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$repo', '${ws:-}')")/tmp"
+mkdir -p "$tmp"
+```
 
 **2. Config.** `$ws/.archie/config.json` (or `$repo/.archie/config.json` in the
 single case). Missing → run the **first-run setup** below. It decides what the
