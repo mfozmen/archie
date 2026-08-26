@@ -212,3 +212,12 @@ test('with no argument the workspace is the directory it was run in', () => {
   finally { process.chdir(cwd); console.log = real; }
   assert.deepStrictEqual(JSON.parse(out.join('\n')).repos.map(r => r.name), ['orders-api']);
 });
+
+// Badges are the common case, but a README opening with a plain docs link is
+// just as useless as a description — and it is not a badge.
+test('a leading markdown link is skipped like a badge is', () => {
+  const ws = makeWorkspace();
+  const p = repoIn(ws, 'a');
+  put(p, 'README.md', '# a\n\n[Documentation](https://example.com/docs)\n\nHandles refunds.\n');
+  assert.strictEqual(W.describe(p), 'Handles refunds.');
+});

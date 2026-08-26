@@ -89,14 +89,16 @@ function commitsBy(repoPath, emails, sinceMonths = 12) {
 const HEADING = /^#{1,6}\s+/;
 // The first line of a README that says something, for matching a description
 // against words like "billing" or "notifications". Skips the title heading,
-// which is usually just the repo name again, and badge lines, which are noise.
+// which is usually just the repo name again, and any line opening with a link
+// or a tag: badges, a docs link, a centred logo. A sentence describing what
+// something does does not start with `[` or `<`.
 function describe(repoPath) {
   for (const name of ['README.md', 'readme.md', 'README']) {
     const p = path.join(repoPath, name);
     if (!fs.existsSync(p)) continue;
     for (const raw of fs.readFileSync(p, 'utf8').split('\n', 40)) {
       const line = raw.trim();
-      if (!line || HEADING.test(line) || line.startsWith('[!') || line.startsWith('<')) continue;
+      if (!line || HEADING.test(line) || line.startsWith('[') || line.startsWith('<')) continue;
       return line.length > 200 ? line.slice(0, 200) : line;
     }
     return null;
