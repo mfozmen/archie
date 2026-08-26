@@ -9,4 +9,26 @@ function runMain(mod, main) {
   if (require.main !== mod) return;
   process.exitCode = main(process.argv.slice(2)) || 0;
 }
-module.exports = { runMain };
+
+// Where the code is and where Archie writes are two different questions, so a
+// script needs both answers. `--store <dir>` carries the second one; without it
+// the store falls back beside the repository, which is where it has always been
+// and what a single-repository run still wants.
+//
+// A flag rather than a second positional: scope.js already takes an email and
+// team names positionally, and an argument that silently shifted there would
+// attribute somebody's commits to the wrong directory. Flags are also stripped
+// from `rest`, so a script reading rest[1] cannot pick up a store path by
+// accident.
+function paths(args) {
+  const rest = [];
+  let store = null;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--store') { store = args[++i]; continue; }
+    rest.push(args[i]);
+  }
+  const repo = rest.find(a => !a.startsWith('--')) || process.cwd();
+  return { repo, store: store || require('./model').storeFor(repo), rest };
+}
+
+module.exports = { runMain, paths };

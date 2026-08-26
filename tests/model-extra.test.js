@@ -84,8 +84,8 @@ test('a recipe with no stack, no probes, or an unknown probe kind is rejected', 
 
 test('loadFlow on an entry that was never traced is null, not an error', () => {
   const { root } = makeTempRepo();
-  M.saveFlow(root, flow);
-  assert.strictEqual(M.loadFlow(root, 'http.GET./never-traced'), null);
+  M.saveFlow(M.storeFor(root), flow);
+  assert.strictEqual(M.loadFlow(M.storeFor(root), 'http.GET./never-traced'), null);
 });
 
 // watchFromFlow runs on whatever explain hands it. A flow that cites nothing

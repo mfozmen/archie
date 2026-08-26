@@ -7,7 +7,20 @@ const KINDS = ['http', 'queue', 'cron', 'cli', 'event', 'public-api'];
 const COVERAGE = new Set(['none', 'traced', 'stale']);
 const ANSWER_KEYS = ['entry', 'guards', 'decisions', 'data', 'boundary', 'returns'];
 
-const dir = (root, ...p) => path.join(root, ARCHIE_DIR, ...p);
+// Two questions that used to have one answer: where the code is, and where
+// Archie writes. They were the same directory only because Archie could see one
+// repository — and that is exactly what made a responsibility spanning several
+// repos impossible to store, since it has no single repo to live in.
+//
+// From here the store functions take a *store directory*, not a repo root, and
+// storeFor() is the only place that decides what that directory is. Given a
+// workspace, every repo's store lives under the workspace, which leaves the
+// analyzed repositories untouched: they become read-only inputs, and a repo
+// that had to be cloned in order to be read needs nothing written back into it.
+const dir = (store, ...p) => path.join(store, ...p);
+const storeFor = (repoPath, workspace) => workspace
+  ? path.join(workspace, ARCHIE_DIR, 'repos', path.basename(repoPath))
+  : path.join(repoPath, ARCHIE_DIR);
 function readJson(p) { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; }
 function writeJson(p, obj) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, JSON.stringify(obj, null, 2) + '\n'); }
 
@@ -146,8 +159,8 @@ function validateRecipe(r) {
 // edit would otherwise reach the renderers as if it were proven evidence. Name
 // the file that is wrong; do not skip it silently and do not fail somewhere
 // downstream where the cause is invisible.
-function readFlow(root, name) {
-  const p = dir(root, 'flows', name);
+function readFlow(store, name) {
+  const p = dir(store, 'flows', name);
   if (!fs.existsSync(p)) return null;
   let flow;
   try { flow = JSON.parse(fs.readFileSync(p, 'utf8')); }
@@ -252,22 +265,24 @@ function mergeModel(existing, discovered) {
 
 module.exports = {
   ARCHIE_DIR, KINDS, ANSWER_KEYS, validateModel, validateFlow, validateRecipe, validateConfig, mergeModel, watchFromFlow,
-  loadModel: (root) => readJson(dir(root, 'model.json')),
-  saveModel: (root, m) => { validateModel(m); writeJson(dir(root, 'model.json'), m); },
-  loadFlow: (root, id) => readFlow(root, slug(id) + '.json'),
-  saveFlow: (root, f) => { validateFlow(f); writeJson(dir(root, 'flows', slug(f.id) + '.json'), f); },
-  listFlows: (root) => fs.existsSync(dir(root, 'flows'))
-    ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).sort(byCodePoint).map(n => readFlow(root, n))
+  storeFor,
+  loadModel: (store) => readJson(dir(store, 'model.json')),
+  saveModel: (store, m) => { validateModel(m); writeJson(dir(store, 'model.json'), m); },
+  loadFlow: (store, id) => readFlow(store, slug(id) + '.json'),
+  saveFlow: (store, f) => { validateFlow(f); writeJson(dir(store, 'flows', slug(f.id) + '.json'), f); },
+  listFlows: (store) => fs.existsSync(dir(store, 'flows'))
+    ? fs.readdirSync(dir(store, 'flows')).filter(n => n.endsWith('.json')).sort(byCodePoint).map(n => readFlow(store, n))
     : [],
-  loadConfig: (root) => readJson(dir(root, 'config.json')),
-  saveConfig: (root, c) => { validateConfig(c); writeJson(dir(root, 'config.json'), c); },
-  // Where `wiki` renders to. Defaults under .archie/ so a first run writes
-  // nothing a repository would not expect; configurable because a map nobody
-  // browses is a map nobody reads.
-  outputDir: (root) => {
-    const out = readJson(dir(root, 'config.json'))?.output;
-    return out ? path.join(root, out) : dir(root, 'wiki');
+  loadConfig: (store) => readJson(dir(store, 'config.json')),
+  saveConfig: (store, c) => { validateConfig(c); writeJson(dir(store, 'config.json'), c); },
+  // Where `wiki` renders to. `base` is what a relative config.output resolves
+  // against — the repository today, the workspace once one is set. Defaults
+  // inside the store so a first run writes nothing anyone has to clean up;
+  // configurable because a map nobody browses is a map nobody reads.
+  outputDir: (store, base) => {
+    const out = readJson(dir(store, 'config.json'))?.output;
+    return out ? path.join(base, out) : dir(store, 'wiki');
   },
-  loadRecipe: (root) => readJson(dir(root, 'recipe.json')),
-  saveRecipe: (root, r) => { validateRecipe(r); writeJson(dir(root, 'recipe.json'), r); },
+  loadRecipe: (store) => readJson(dir(store, 'recipe.json')),
+  saveRecipe: (store, r) => { validateRecipe(r); writeJson(dir(store, 'recipe.json'), r); },
 };

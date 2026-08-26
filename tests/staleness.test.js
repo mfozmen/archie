@@ -20,13 +20,13 @@ test('traced entry goes stale when a watched file changes after trace', () => {
   const { root } = makeTempRepo();
   write(root, 'app/Http/OrderController.php', '<?php // v1');
   const sha = commitAll(root, 'add controller');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [{
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [{
     id: 'http.POST./api/orders', kind: 'http', label: 'POST /api/orders',
     evidence: [{ file: 'routes/api.php', line: 1 }], coverage: 'traced',
     traced_at_sha: sha, watch: ['app/Http/*.php'] }] });
   write(root, 'app/Http/OrderController.php', '<?php // v2');
   commitAll(root, 'change controller');
-  const model = M.loadModel(root);
+  const model = M.loadModel(M.storeFor(root));
   const staled = S.markStale(model, S.changedFilesSince(root, sha));
   assert.deepStrictEqual(staled, ['http.POST./api/orders']);
   assert.strictEqual(model.entries[0].coverage, 'stale');
@@ -35,10 +35,10 @@ test('traced entry goes stale when a watched file changes after trace', () => {
 test('an unreachable traced SHA degrades that entry, it does not crash', () => {
   const { root } = makeTempRepo();
   write(root, 'a.php', 'v1'); commitAll(root, 'a');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [{
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [{
     id: 'e1', kind: 'http', label: 'E1', evidence: [{ file: 'a.php', line: 1 }],
     coverage: 'traced', traced_at_sha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', watch: ['a.php'] }] });
-  const model = M.loadModel(root);
+  const model = M.loadModel(M.storeFor(root));
   const changed = S.changedFilesSince(root, model.entries[0].traced_at_sha);
   assert.strictEqual(changed, null);                       // unreachable, reported as such
   assert.deepStrictEqual(S.markStale(model, changed), ['e1']); // unprovable => stale, never "fine"
@@ -47,12 +47,12 @@ test('an unreachable traced SHA degrades that entry, it does not crash', () => {
 test('unrelated change does not stale', () => {
   const { root } = makeTempRepo();
   write(root, 'watched.php', 'a'); const sha = commitAll(root, 'w');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [{
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [{
     id: 'cli.orders.sync', kind: 'cli', label: 'orders:sync',
     evidence: [{ file: 'watched.php', line: 1 }], coverage: 'traced',
     traced_at_sha: sha, watch: ['watched.php'] }] });
   write(root, 'other.php', 'b'); commitAll(root, 'o');
-  const model = M.loadModel(root);
+  const model = M.loadModel(M.storeFor(root));
   assert.deepStrictEqual(S.markStale(model, S.changedFilesSince(root, sha)), []);
   assert.strictEqual(model.entries[0].coverage, 'traced');
 });
@@ -61,11 +61,11 @@ test('a non-ASCII watched path still goes stale', () => {
   const { root } = makeTempRepo();
   write(root, 'app/sipariş.php', 'v1');
   const sha = commitAll(root, 'add');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [{
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [{
     id: 'e1', kind: 'http', label: 'E1', evidence: [{ file: 'app/sipariş.php', line: 1 }],
     coverage: 'traced', traced_at_sha: sha, watch: ['app/*.php'] }] });
   write(root, 'app/sipariş.php', 'v2'); commitAll(root, 'change');
-  const model = M.loadModel(root);
+  const model = M.loadModel(M.storeFor(root));
   assert.deepStrictEqual(S.markStale(model, S.changedFilesSince(root, sha)), ['e1']);
 });
 
@@ -86,7 +86,7 @@ test('main with no argument runs against the current directory', () => {
   const { root } = makeTempRepo();
   write(root, 'a.php', 'v1');
   const sha = commitAll(root, 'a');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [{
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [{
     id: 'e1', kind: 'http', label: 'E1', evidence: [{ file: 'a.php', line: 1 }],
     coverage: 'traced', traced_at_sha: sha, watch: ['a.php'] }] });
   write(root, 'a.php', 'v2'); commitAll(root, 'change');
@@ -98,5 +98,5 @@ test('main with no argument runs against the current directory', () => {
   try { process.chdir(root); code = S.main([]); } finally { console.log = log; process.chdir(cwd); }
   assert.strictEqual(code, 0);
   assert.deepStrictEqual(lines, ['stale: e1']);
-  assert.strictEqual(M.loadModel(root).entries[0].coverage, 'stale'); // and it was persisted
+  assert.strictEqual(M.loadModel(M.storeFor(root)).entries[0].coverage, 'stale'); // and it was persisted
 });

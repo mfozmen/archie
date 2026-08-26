@@ -30,29 +30,29 @@ test('store writes recipe, config, flow and model from a file', () => {
   const { root } = makeTempRepo();
   store(root, 'recipe', tmpJson(root, 'r.json',
     { stack: 'generic', probes: [{ kind: 'http', glob: '**/*.php', pattern: 'Route::' }] }));
-  assert.strictEqual(M.loadRecipe(root).probes.length, 1);
+  assert.strictEqual(M.loadRecipe(M.storeFor(root)).probes.length, 1);
 
   store(root, 'config', tmpJson(root, 'c.json', { language: 'tr' }));
-  assert.strictEqual(M.loadConfig(root).language, 'tr');
+  assert.strictEqual(M.loadConfig(M.storeFor(root)).language, 'tr');
 
   store(root, 'model', tmpJson(root, 'm.json', { version: 1, unknowns: [], entries: [entry] }));
-  assert.strictEqual(M.loadModel(root).entries[0].label, quoted);
+  assert.strictEqual(M.loadModel(M.storeFor(root)).entries[0].label, quoted);
 
   store(root, 'flow', tmpJson(root, 'f.json', flow));
-  assert.strictEqual(M.loadFlow(root, flow.id).summary, "Doesn't fail on a quote.");
+  assert.strictEqual(M.loadFlow(M.storeFor(root), flow.id).summary, "Doesn't fail on a quote.");
 });
 
 test('store merge-inventory merges instead of overwriting, and prints the buckets', () => {
   const { root } = makeTempRepo();
   const traced = { ...entry, coverage: 'traced', traced_at_sha: 'abc', watch: ['app/A.php'] };
-  M.saveModel(root, { version: 1, unknowns: [], entries: [traced] });
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [traced] });
 
   const out = JSON.parse(store(root, 'merge-inventory',
     tmpJson(root, 'd.json', [entry, { ...entry, id: 'http.GET./new', label: 'GET /new' }])));
   assert.deepStrictEqual(out.added, ['http.GET./new']);
   assert.deepStrictEqual(out.kept, [entry.id]);
   assert.deepStrictEqual(out.disappeared, []);
-  assert.strictEqual(M.loadModel(root).entries.find(e => e.id === entry.id).coverage, 'traced');
+  assert.strictEqual(M.loadModel(M.storeFor(root)).entries.find(e => e.id === entry.id).coverage, 'traced');
 });
 
 test('store refuses invalid input and says which file and why', () => {
