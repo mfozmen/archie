@@ -74,6 +74,84 @@ test('scope must be an object with non-empty string paths', () => {
       /scope\.paths must be non-empty strings/, JSON.stringify(bad));
 });
 
+// The responsibility set. `why` is the whole point of it: the set is where
+// Archie says "this repository is yours", and an entry nobody can trace back to
+// evidence is the honesty rule breaking in the config file itself.
+test('a repo in the set without the evidence that put it there is rejected', () => {
+  assert.throws(() => M.validateConfig({ repos: [{ name: 'orders-api' }] }),
+    /repos\[0\]: why required/);
+  for (const bad of ['', 7, null])
+    assert.throws(() => M.validateConfig({ repos: [{ name: 'orders-api', why: bad }] }),
+      /repos\[0\]: why required/, JSON.stringify(bad));
+  M.validateConfig({ repos: [{ name: 'orders-api', why: '@org/payments in .github/CODEOWNERS; 84 of your commits' }] });
+});
+
+test('a repo entry with no usable name is rejected, and a repeated one too', () => {
+  assert.throws(() => M.validateConfig({ repos: [{ why: 'named in CODEOWNERS' }] }), /repos\[0\]: name required/);
+  assert.throws(() => M.validateConfig({ repos: [{ name: '', why: 'named in CODEOWNERS' }] }), /repos\[0\]: name required/);
+  // Two entries with one name share one store directory under the workspace, so
+  // the second repository's inventory would overwrite the first in silence.
+  assert.throws(() => M.validateConfig({ repos: [
+    { name: 'orders-api', why: '@org/payments in CODEOWNERS' },
+    { name: 'orders-api', why: '12 of your commits' },
+  ] }), /repos\[1\]: duplicate name "orders-api"/);
+});
+
+// Three of these used to reach a validator as a raw TypeError instead of a named
+// violation, which is why every shape is listed rather than assumed.
+test('a malformed repos or declined list is named, never a TypeError', () => {
+  for (const bad of [null, 'orders-api', {}])
+    assert.throws(() => M.validateConfig({ repos: bad }), /repos must be an array/, JSON.stringify(bad));
+  for (const bad of [null, 'orders-api', 7])
+    assert.throws(() => M.validateConfig({ repos: [bad] }), /repos\[0\]: must be an object/, JSON.stringify(bad));
+  for (const bad of [null, 'orders-api', {}])
+    assert.throws(() => M.validateConfig({ declined: bad }), /declined must be an array/, JSON.stringify(bad));
+  for (const bad of [[''], [7], [null]])
+    assert.throws(() => M.validateConfig({ declined: bad }), /declined must be non-empty strings/, JSON.stringify(bad));
+  M.validateConfig({ declined: ['some-other-repo'] });
+});
+
+// Declining is not a judgement about the repository, only a record that this
+// person was asked. Saying both about one name leaves the set contradicting its
+// own asking-log, and nothing in the config can say which half is stale.
+test('a repo that is both owned and declined is rejected', () => {
+  assert.throws(() => M.validateConfig({
+    repos: [{ name: 'orders-api', why: '@org/payments in CODEOWNERS' }],
+    declined: ['orders-api'],
+  }), /repos: "orders-api" is also in declined/);
+  // A nameless entry must not crash the cross-check on its way to being reported.
+  assert.throws(() => M.validateConfig({ repos: [{ why: 'some evidence' }], declined: ['orders-api'] }),
+    /repos\[0\]: name required/);
+});
+
+// The handle is compared against CODEOWNERS tokens, which carry the `@`. Stored
+// without it, it matches nothing and the user simply never appears to be named
+// anywhere — a silent wrong answer rather than an error.
+test('a handle that is not a CODEOWNERS handle is rejected', () => {
+  for (const bad of [null, 7, '', 'someone', '@'])
+    assert.throws(() => M.validateConfig({ handle: bad }), /handle must be a CODEOWNERS handle/, JSON.stringify(bad));
+  M.validateConfig({ handle: '@someone' });
+});
+
+// Every store path under a workspace hangs off this one. A relative value would
+// resolve against whatever directory the command ran in, so the same workspace
+// would have different stores depending on where you stood.
+test('a workspace that is not an absolute path is rejected', () => {
+  for (const bad of [null, 7, '', 'source', './source'])
+    assert.throws(() => M.validateConfig({ workspace: bad }), /workspace must be an absolute path/, JSON.stringify(bad));
+  M.validateConfig({ workspace: '/src' });
+});
+
+// The set was added to a config that already had these, and they are read by
+// render, status and the sweep. Adding fields must not have moved any of them.
+test('the responsibility set does not disturb language, output or scope', () => {
+  M.validateConfig({ language: 'tr', output: 'docs/system-map', scope: { label: 'Orders', paths: ['app/Orders'] },
+    workspace: '/src', handle: '@someone',
+    repos: [{ name: 'orders-api', why: '@org/payments in .github/CODEOWNERS' }], declined: ['some-other-repo'] });
+  assert.throws(() => M.validateConfig({ workspace: '/src', output: '../outside' }),
+    /output must be a relative path inside the repository/);
+});
+
 test('a recipe with no stack, no probes, or an unknown probe kind is rejected', () => {
   assert.throws(() => M.validateRecipe({ probes: [{ kind: 'http', glob: 'a', pattern: 'b' }] }), /stack required/);
   assert.throws(() => M.validateRecipe({ stack: 'x', probes: [] }), /probes required/);
