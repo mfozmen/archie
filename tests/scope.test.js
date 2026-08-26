@@ -87,3 +87,15 @@ test('ordering does not depend on the machine locale', () => {
   assert.deepStrictEqual(['zebra', 'sipariş', 'app'].sort(byCodePoint), ['app', 'sipariş', 'zebra']);
   assert.strictEqual(byCodePoint('a', 'a'), 0);
 });
+
+test('directories with equal commit counts tie-break by name, not by locale', () => {
+  const { root } = makeTempRepo();
+  git(root, 'config', 'user.email', 'me@example.com');
+  // One commit each, so ordering is decided entirely by the tie-break.
+  write(root, 'zebra/a.php', '1'); commitAll(root, 'z');
+  write(root, 'sipariş/a.php', '1'); commitAll(root, 's');
+  write(root, 'app/a.php', '1'); commitAll(root, 'a');
+  const hist = S.deriveCandidates(root, { email: 'me@example.com' })
+    .filter(x => x.source === 'git-history');
+  assert.deepStrictEqual(hist.map(x => x.path), ['app', 'sipariş', 'zebra']);
+});

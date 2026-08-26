@@ -135,10 +135,11 @@ function responseLines(flow) {
 }
 
 function operationLines({ method, en, flow }, params) {
+  const at = en.evidence[0];
   return [
     `    ${method}:`,
     `      description: ${yamlStr(flow?.summary || 'Not yet documented')}`,
-    `      x-archie-evidence: ${yamlStr(`${en.evidence[0].file}:${en.evidence[0].line}`)}`,
+    `      x-archie-evidence: ${yamlStr(at.file + ':' + at.line)}`,
     ...paramLines(params),
     '      # TODO: body schema not derivable from static evidence',
     '      responses:',

@@ -93,7 +93,10 @@ function fromGitHistory(root, email, sinceMonths = 12) {
     perDir.set(dir, (perDir.get(dir) || 0) + 1);
   }
   return [...perDir.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    // Most-touched first; ties broken by name. byCodePoint, not localeCompare:
+    // two directories with equal commit counts must order the same way on every
+    // machine, whatever ICU data it happens to carry.
+    .sort((a, b) => b[1] - a[1] || byCodePoint(a[0], b[0]))
     .map(([dir, n]) => ({ path: dir, source: 'git-history', detail: `${n} of your ${total} commits touched it` }));
 }
 
