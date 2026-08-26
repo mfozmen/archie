@@ -3,67 +3,99 @@ const path = require('node:path');
 const { runMain } = require('./lib/cli');
 const EXTERNAL_IMAGES = /redis|postgres|mysql|mariadb|mongo|rabbitmq|kafka|elasticsearch|memcached|minio|localstack/;
 const FRAMEWORK_DEPS = ['express', 'fastify', 'koa', 'next'];
+// Manifests we can only prove exist — presence is the whole signal, no version.
+const PRESENCE_MANIFESTS = [['pom.xml', 'jvm'], ['build.gradle', 'jvm'],
+  ['requirements.txt', 'python'], ['pyproject.toml', 'python'], ['Gemfile', 'ruby']];
+const COMPOSE_FILES = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
+const PROC_KINDS = [[/^(worker|queue)/, 'worker'], [/^(cron|scheduler|clock)/, 'cron']];
 
 function readIf(root, rel) {
   const p = path.join(root, rel);
   return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
 }
-function fingerprint(root) {
-  const out = { stackHints: [], processes: [], externals: [] };
+function nodeHints(root) {
   const pkg = readIf(root, 'package.json');
-  if (pkg) {
-    try {
-      const j = JSON.parse(pkg);
-      out.stackHints.push({ file: 'package.json', name: 'node', version: j.engines?.node ?? null });
-      for (const d of FRAMEWORK_DEPS) if (j.dependencies?.[d] || j.devDependencies?.[d])
-        out.stackHints.push({ file: 'package.json', name: d, version: j.dependencies?.[d] ?? j.devDependencies?.[d] });
-    } catch { /* unparseable manifest: skip, fingerprint stays honest */ }
-  }
+  if (!pkg) return [];
+  try {
+    const j = JSON.parse(pkg);
+    const hints = [{ file: 'package.json', name: 'node', version: j.engines?.node ?? null }];
+    for (const d of FRAMEWORK_DEPS) if (j.dependencies?.[d] || j.devDependencies?.[d])
+      hints.push({ file: 'package.json', name: d, version: j.dependencies?.[d] ?? j.devDependencies?.[d] });
+    return hints;
+  } catch { return []; /* unparseable manifest: skip, fingerprint stays honest */ }
+}
+function phpHints(root) {
   const composer = readIf(root, 'composer.json');
-  if (composer) {
-    try {
-      const j = JSON.parse(composer);
-      out.stackHints.push({ file: 'composer.json', name: 'php', version: j.require?.php ?? null });
-      for (const k of Object.keys(j.require || {}))
-        if (k === 'laravel/framework' || k.startsWith('symfony/'))
-          out.stackHints.push({ file: 'composer.json', name: k, version: j.require[k] });
-    } catch { /* unparseable manifest: skip, fingerprint stays honest */ }
-  }
+  if (!composer) return [];
+  try {
+    const j = JSON.parse(composer);
+    const hints = [{ file: 'composer.json', name: 'php', version: j.require?.php ?? null }];
+    for (const k of Object.keys(j.require || {}))
+      if (k === 'laravel/framework' || k.startsWith('symfony/'))
+        hints.push({ file: 'composer.json', name: k, version: j.require[k] });
+    return hints;
+  } catch { return []; /* unparseable manifest: skip, fingerprint stays honest */ }
+}
+function goHints(root) {
   const gomod = readIf(root, 'go.mod');
-  if (gomod) out.stackHints.push({ file: 'go.mod', name: 'go', version: (gomod.match(/^go (.+)$/m) || [])[1] ?? null });
-  for (const [file, name] of [['pom.xml', 'jvm'], ['build.gradle', 'jvm'], ['requirements.txt', 'python'], ['pyproject.toml', 'python'], ['Gemfile', 'ruby']])
-    if (readIf(root, file) !== null) out.stackHints.push({ file, name, version: null });
-
-  for (const composeName of ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']) {
-    const compose = readIf(root, composeName);
+  if (!gomod) return [];
+  return [{ file: 'go.mod', name: 'go', version: (gomod.match(/^go (.+)$/m) || [])[1] ?? null }];
+}
+function presenceHints(root) {
+  return PRESENCE_MANIFESTS
+    .filter(([file]) => readIf(root, file) !== null)
+    .map(([file, name]) => ({ file, name, version: null }));
+}
+// The first compose file that actually declares services: wins. A candidate
+// without a services: key is skipped, never allowed to suppress a valid one
+// later in the list.
+function composeUnits(root) {
+  for (const source of COMPOSE_FILES) {
+    const compose = readIf(root, source);
     if (!compose) continue;
     // ponytail: 2-space-indent service scan, not a YAML parser — upgrade if real files break it
     const lines = compose.split('\n');
     const svcIdx = lines.findIndex(l => /^services:\s*$/.test(l));
-    // continue, not break: a first candidate without a services: key must not
-    // suppress a valid compose file later in the list.
     if (svcIdx === -1) continue;
+    let processes = [];
+    const externals = [];
     let current = null;
     for (const l of lines.slice(svcIdx + 1)) {
-      if (/^\S/.test(l)) break;
-      const svc = l.match(/^  (\w[\w-]*):\s*$/);
-      if (svc) { current = { name: svc[1] }; out.processes.push({ name: svc[1], kind: 'unknown', source: composeName }); continue; }
+      if (/^\S/.test(l)) break;          // a top-level key ends the services block
+      const svc = l.match(/^ {2}(\w[\w-]*):\s*$/);
+      if (svc) { current = svc[1]; processes.push({ name: svc[1], kind: 'unknown', source }); continue; }
       const img = l.match(/^\s+image:\s*(\S+)/);
-      if (img && current && EXTERNAL_IMAGES.test(img[1])) {
-        out.processes = out.processes.filter(p => p.name !== current.name);
-        out.externals.push({ name: (img[1].match(EXTERNAL_IMAGES) || [])[0], source: composeName });
-      }
+      const ext = img && current && img[1].match(EXTERNAL_IMAGES);
+      if (!ext) continue;
+      // A known backing service is not a process of ours: it is an external.
+      processes = processes.filter(p => p.name !== current);
+      externals.push({ name: ext[0], source });
     }
-    break;
+    return { processes, externals };
   }
+  return { processes: [], externals: [] };
+}
+function procKind(name) {
+  if (name === 'web') return 'web';
+  return PROC_KINDS.find(([re]) => re.test(name))?.[1] ?? 'unknown';
+}
+function procfileProcesses(root) {
   const proc = readIf(root, 'Procfile');
-  if (proc) for (const l of proc.split('\n')) {
-    const m = l.match(/^(\w[\w-]*):\s*(.+)$/);
-    if (!m) continue;
-    const kind = m[1] === 'web' ? 'web' : /^(worker|queue)/.test(m[1]) ? 'worker' : /^(cron|scheduler|clock)/.test(m[1]) ? 'cron' : 'unknown';
-    out.processes.push({ name: m[1], kind, source: 'Procfile' });
+  if (!proc) return [];
+  const processes = [];
+  for (const l of proc.split('\n')) {
+    const m = l.match(/^(\w[\w-]*):.+$/);
+    if (m) processes.push({ name: m[1], kind: procKind(m[1]), source: 'Procfile' });
   }
-  return out;
+  return processes;
+}
+function fingerprint(root) {
+  const compose = composeUnits(root);
+  return {
+    stackHints: [...nodeHints(root), ...phpHints(root), ...goHints(root), ...presenceHints(root)],
+    processes: [...compose.processes, ...procfileProcesses(root)],
+    externals: compose.externals,
+  };
 }
 function main(args) {
   console.log(JSON.stringify(fingerprint(args[0] || process.cwd()), null, 2));

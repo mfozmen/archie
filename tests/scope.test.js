@@ -99,3 +99,63 @@ test('directories with equal commit counts tie-break by name, not by locale', ()
     .filter(x => x.source === 'git-history');
   assert.deepStrictEqual(hist.map(x => x.path), ['app', 'sipariş', 'zebra']);
 });
+
+test('a CODEOWNERS pattern with no owner on it is not a candidate', () => {
+  const { root } = makeTempRepo();
+  // A pattern line with nothing after it owns nothing. It says no team is
+  // responsible for that path, which is the opposite of evidence that you are.
+  write(root, '.github/CODEOWNERS', ['/app/Orphan/', '/app/Orders/  @acme/orders-team'].join('\n'));
+  write(root, 'app/Orders/Ship.php', 'x');
+  commitAll(root, 'codeowners');
+  const owned = S.fromCodeowners(root).map(x => x.path);
+  assert.deepStrictEqual(owned, ['app/Orders']);
+});
+
+test('outside a git repository the tree fallback is empty, not a crash', () => {
+  const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+  const notARepo = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-notarepo-'));
+  try {
+    // `git ls-files` fails here. Proposing nothing is the honest answer; the
+    // alternative is a stack trace at someone who ran /archie:scope one
+    // directory too high.
+    assert.deepStrictEqual(S.fromTree(notARepo), []);
+    assert.deepStrictEqual(S.deriveCandidates(notARepo, { email: 'me@example.com' }), []);
+    // Same through the CLI on a machine with NO git identity at all — the
+    // config lookup exits non-zero and there is no email to fall back on. That
+    // must produce no candidates, not a crash on a missing string.
+    const out = require('node:child_process').execFileSync(process.execPath,
+      [path.join(__dirname, '..', 'scripts', 'scope.js')],
+      { cwd: notARepo, encoding: 'utf8',
+        env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } });
+    assert.deepStrictEqual(JSON.parse(out), []);
+  } finally {
+    fs.rmSync(notARepo, { recursive: true, force: true });
+  }
+});
+
+test('scope.js with no arguments scopes the directory it was run in', () => {
+  const { execFileSync } = require('node:child_process');
+  const path = require('node:path');
+  const { root } = makeTempRepo();
+  git(root, 'config', 'user.email', 'me@example.com');
+  write(root, 'app/Orders/a.php', '1'); commitAll(root, 'a');
+  const script = path.join(__dirname, '..', 'scripts', 'scope.js');
+  // No root argument and no email argument: cwd is the repo, and the email comes
+  // from that repo's own git config.
+  const out = JSON.parse(execFileSync(process.execPath, [script], { cwd: root, encoding: 'utf8' }));
+  assert.deepStrictEqual(out, S.deriveCandidates(root, { email: 'me@example.com' }));
+  assert.ok(out.some(c => c.source === 'git-history' && c.path === 'app/Orders'),
+    'the configured user.email was used, not nobody');
+});
+
+test('a path before any commit is ignored, not credited to the previous one', () => {
+  const sha = 'a'.repeat(40), other = 'b'.repeat(40);
+  // Real git never emits this. The guard exists so that if it ever did, the
+  // stray path would not inflate whichever directory happened to come last.
+  const stray = S.countByDirectory(['app/Orders/leaked.php', sha, 'app/Billing/a.php'].join('\n'));
+  assert.deepStrictEqual(stray.map(c => c.path), ['app/Billing']);
+
+  const normal = S.countByDirectory([sha, 'app/Orders/a.php', other, 'app/Orders/b.php'].join('\n'));
+  assert.deepStrictEqual(normal.map(c => c.path), ['app/Orders']);
+  assert.match(normal[0].detail, /2 of your 2 commits/);
+});

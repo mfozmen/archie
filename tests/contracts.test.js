@@ -12,7 +12,26 @@ test('inventory-worker fixture entries satisfy the model schema', () => {
   M.validateModel({ version: 1, entries, unknowns: [] }); // throws on violation
 });
 
-test('tracer fixture is a valid flow', () => { M.validateFlow(fx('tracer.json')); });
+test('tracer fixture is a valid flow, and still the shape tracer.md promises', () => {
+  const flow = fx('tracer.json');
+  assert.doesNotThrow(() => M.validateFlow(flow));
+  // The schema only checks the key SET. tracer.md asks for the six questions in
+  // a fixed order, and the wiki renders them in that order.
+  assert.deepStrictEqual(Object.keys(flow.answers), M.ANSWER_KEYS);
+  // The whole point of this fixture: guards is left EMPTY rather than filled
+  // with a plausible-sounding authorization claim, and the missing guard is
+  // written up as an unknown that says where it is missing. A fixture that
+  // quietly grew a guard would still validate, and would stop demonstrating the
+  // one behavior the prompt spends its worked example on.
+  assert.deepStrictEqual(flow.answers.guards, []);
+  assert.ok(flow.unknowns.some(u => /restricts who may call/i.test(u.text)),
+    'the empty guards must be accounted for in unknowns');
+  // "Every unknown needs a why and, where you can name one, a look_at" — the
+  // schema makes look_at optional, the fixture is the example of naming one.
+  assert.ok(flow.unknowns.length >= 1);
+  for (const u of flow.unknowns)
+    assert.ok(u.look_at?.file && Number.isInteger(u.look_at.line), `unknown without a look_at: ${u.text}`);
+});
 
 test('verifier fixture: valid flow + audit log with only legal actions', () => {
   const out = fx('verifier.json');

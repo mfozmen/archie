@@ -140,3 +140,31 @@ test('a scope that excludes nothing is still a scope', () => {
   assert.strictEqual(res.scoped, true, 'every tracked file was in scope, but a scope was set');
   assert.strictEqual(sweep(root, r, { forceGrep: true }).scoped, false);
 });
+
+test('a sweep outside a git repository fails loudly instead of finding nothing', () => {
+  const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+  const notARepo = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-notarepo-'));
+  try {
+    // No tracked-file list means no sweep. Returning zero hits would blame the
+    // recipe for a repository that was never there.
+    assert.throws(() => sweep(notARepo, recipe, { forceGrep: true }),
+      new RegExp(`git ls-files failed in ${notARepo.replace(/[.\\]/g, '\\$&')}`));
+  } finally {
+    fs.rmSync(notARepo, { recursive: true, force: true });
+  }
+});
+
+test('sweep.js with no arguments sweeps the directory it was run in', () => {
+  const path = require('node:path');
+  const M = require('../scripts/lib/model');
+  const { root } = makeTempRepo();
+  write(root, 'routes/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  commitFixture(root);
+  M.saveRecipe(root, { stack: 'generic', probes: [
+    { kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' } ] });
+  const out = execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'sweep.js')],
+    { cwd: root, encoding: 'utf8' });
+  assert.match(out, /1 candidate hits/);
+  assert.deepStrictEqual(JSON.parse(require('node:fs').readFileSync(path.join(root, M.ARCHIE_DIR, 'sweep.json'), 'utf8')),
+    [{ kind: 'http', file: 'routes/api.php', line: 2, text: "Route::get('/orders', 'C@i');" }]);
+});

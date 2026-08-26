@@ -4,7 +4,7 @@ const { slug } = require('./slug');
 const { byCodePoint } = require('./order');
 const ARCHIE_DIR = '.archie';
 const KINDS = ['http', 'queue', 'cron', 'cli', 'event', 'public-api'];
-const COVERAGE = ['none', 'traced', 'stale'];
+const COVERAGE = new Set(['none', 'traced', 'stale']);
 const ANSWER_KEYS = ['entry', 'guards', 'decisions', 'data', 'boundary', 'returns'];
 
 const dir = (root, ...p) => path.join(root, ARCHIE_DIR, ...p);
@@ -17,63 +17,85 @@ function checkLoc(loc, where, errors) {
     errors.push(`${where}: evidence must be {file, line>=1}`);
 }
 
-function validateModel(model) {
-  const e = [];
-  if (!model || model.version !== 1) e.push('version must be 1');
-  if (!Array.isArray(model?.entries)) e.push('entries must be an array');
-  for (const [i, en] of (model?.entries || []).entries()) {
-    const w = `entries[${i}]`;
-    if (!en.id) e.push(`${w}: id required`);
-    if (!KINDS.includes(en.kind)) e.push(`${w}: kind invalid`);
-    if (!en.label) e.push(`${w}: label required`);
-    if (!Array.isArray(en.evidence) || en.evidence.length === 0) e.push(`${w}: evidence required`);
-    else en.evidence.forEach((loc, j) => checkLoc(loc, `${w}.evidence[${j}]`, e));
-    if (!COVERAGE.includes(en.coverage)) e.push(`${w}: coverage invalid`);
-    if (en.coverage !== 'none' && (!en.traced_at_sha || !Array.isArray(en.watch) || en.watch.length === 0))
-      e.push(`${w}: traced/stale require traced_at_sha and watch[]`);
-  }
-  // Uniqueness is checked on the SLUG, not the id: two distinct ids that flatten
-  // to the same filename would silently overwrite each other's flows/<slug>.json
-  // and merge their trace state — one entry point would inherit another's evidence.
+function checkEntry(en, w, e) {
+  if (!en.id) e.push(`${w}: id required`);
+  if (!KINDS.includes(en.kind)) e.push(`${w}: kind invalid`);
+  if (!en.label) e.push(`${w}: label required`);
+  if (!Array.isArray(en.evidence) || en.evidence.length === 0) e.push(`${w}: evidence required`);
+  else en.evidence.forEach((loc, j) => checkLoc(loc, `${w}.evidence[${j}]`, e));
+  if (!COVERAGE.has(en.coverage)) e.push(`${w}: coverage invalid`);
+  if (en.coverage !== 'none' && (!en.traced_at_sha || !Array.isArray(en.watch) || en.watch.length === 0))
+    e.push(`${w}: traced/stale require traced_at_sha and watch[]`);
+}
+
+// Uniqueness is checked on the SLUG, not the id: two distinct ids that flatten
+// to the same filename would silently overwrite each other's flows/<slug>.json
+// and merge their trace state — one entry point would inherit another's evidence.
+function checkEntryIds(entries, e) {
   const seen = new Map();
-  for (const en of (model?.entries || [])) {
+  for (const en of entries) {
     if (!en.id) continue;
     const s = slug(en.id);
     if (seen.has(s) && seen.get(s) !== en.id) e.push(`entries: "${en.id}" and "${seen.get(s)}" both map to flows/${s}.json`);
     else if (seen.has(s)) e.push(`entries: duplicate id "${en.id}"`);
     else seen.set(s, en.id);
   }
+}
+
+function validateModel(model) {
+  const e = [];
+  if (model?.version !== 1) e.push('version must be 1');
+  // `|| []` was not enough: a non-array truthy entries (a string, an object)
+  // survived it and then threw a raw TypeError from .entries(), which breaks the
+  // "list every violation" contract on the file that enforces the honesty rule.
+  // Same failure validateFlow had for answers[k] and tests[].
+  const entries = Array.isArray(model?.entries) ? model.entries : [];
+  if (!Array.isArray(model?.entries)) e.push('entries must be an array');
+  for (const [i, en] of entries.entries()) checkEntry(en, `entries[${i}]`, e);
+  checkEntryIds(entries, e);
   if (!Array.isArray(model?.unknowns)) e.push('unknowns must be an array');
   fail(e);
+}
+
+function checkClaim(c, where, e) {
+  if (!c.text) e.push(`${where}: text required`);
+  checkLoc(c.evidence, where, e);
+  if (c.tests === undefined) return;
+  if (!Array.isArray(c.tests)) e.push(`${where}.tests: must be an array`);
+  else c.tests.forEach((t, j) => checkLoc(t, `${where}.tests[${j}]`, e));
+}
+
+function checkAnswers(flow, e) {
+  const keys = Object.keys(flow?.answers || {}).sort(byCodePoint).join(',');
+  if (keys !== [...ANSWER_KEYS].sort(byCodePoint).join(',')) {
+    e.push(`answers must have exactly keys ${ANSWER_KEYS.join(',')}`);
+    return;
+  }
+  for (const k of ANSWER_KEYS) {
+    // The key-set check above proves the six names are present, not that they
+    // hold arrays. A raw TypeError here would break the "throws listing every
+    // violation" contract on the file that enforces the honesty invariant.
+    if (!Array.isArray(flow.answers[k])) { e.push(`answers.${k}: must be an array`); continue; }
+    flow.answers[k].forEach((c, i) => checkClaim(c, `answers.${k}[${i}]`, e));
+  }
+}
+
+function checkFlowUnknowns(flow, e) {
+  if (!Array.isArray(flow?.unknowns)) { e.push('unknowns must be an array'); return; }
+  flow.unknowns.forEach((u, i) => {
+    if (!u.text || !u.why) e.push(`unknowns[${i}]: text and why required`);
+    // look_at is optional, but when present it is a citation like any other —
+    // a malformed one must not reach the renderer as if it were evidence.
+    if (u.look_at) checkLoc(u.look_at, `unknowns[${i}].look_at`, e);
+  });
 }
 
 function validateFlow(flow) {
   const e = [];
   if (!flow?.id) e.push('id required');
   if (!flow?.summary) e.push('summary required');
-  const keys = Object.keys(flow?.answers || {}).sort(byCodePoint).join(',');
-  if (keys !== [...ANSWER_KEYS].sort(byCodePoint).join(',')) e.push(`answers must have exactly keys ${ANSWER_KEYS.join(',')}`);
-  else for (const k of ANSWER_KEYS) {
-    // The key-set check above proves the six names are present, not that they
-    // hold arrays. A raw TypeError here would break the "throws listing every
-    // violation" contract on the file that enforces the honesty invariant.
-    if (!Array.isArray(flow.answers[k])) { e.push(`answers.${k}: must be an array`); continue; }
-    for (const [i, c] of flow.answers[k].entries()) {
-      if (!c.text) e.push(`answers.${k}[${i}]: text required`);
-      checkLoc(c.evidence, `answers.${k}[${i}]`, e);
-      if (c.tests !== undefined) {
-        if (!Array.isArray(c.tests)) e.push(`answers.${k}[${i}].tests: must be an array`);
-        else c.tests.forEach((t, j) => checkLoc(t, `answers.${k}[${i}].tests[${j}]`, e));
-      }
-    }
-  }
-  if (!Array.isArray(flow?.unknowns)) e.push('unknowns must be an array');
-  else for (const [i, u] of flow.unknowns.entries()) {
-    if (!u.text || !u.why) e.push(`unknowns[${i}]: text and why required`);
-    // look_at is optional, but when present it is a citation like any other —
-    // a malformed one must not reach the renderer as if it were evidence.
-    if (u.look_at) checkLoc(u.look_at, `unknowns[${i}].look_at`, e);
-  }
+  checkAnswers(flow, e);
+  checkFlowUnknowns(flow, e);
   if (!flow?.traced_at_sha) e.push('traced_at_sha required');
   fail(e);
 }
@@ -166,6 +188,36 @@ function watchFromFlow(flow) {
 }
 
 const MERGE_SOURCE = 'inventory-merge';
+
+// Note what is NOT reset here: a `stale` entry stays stale on rediscovery.
+// A route that vanished and came back was deleted and re-added, renamed
+// twice, or moved; the old page describes code nobody re-checked, so it must
+// go through explain's refresh rather than quietly reverting to `traced`.
+// Discovery wins on location and label; the trace wins on everything it earned.
+// handler is discovery's field outright, including when it goes away: a route
+// that now dispatches to a closure has no handler, and keeping the old one
+// would present a stale reading as current.
+function mergeEntry(old, d) {
+  const merged = { ...old, kind: d.kind, label: d.label, evidence: d.evidence };
+  if (d.handler) merged.handler = d.handler; else delete merged.handler;
+  return merged;
+}
+
+// Reported on stdout, a vanished entry point survives exactly as long as the
+// console scrollback. Persist it as an unknown instead, so it reaches
+// open-questions.md and the status count. Regenerated from scratch every run:
+// no duplicates on a re-run, and it clears itself the moment the route is
+// found again. Human-written unknowns are never touched.
+function mergeUnknowns(existing, prev, disappeared) {
+  const unknowns = (existing?.unknowns || []).filter(u => u.source !== MERGE_SOURCE);
+  for (const id of disappeared) unknowns.push({
+    text: `${prev.get(id).label} is in the inventory but the sweep no longer finds it.`,
+    why: 'A deleted route, a renamed one, a recipe that stopped matching, and an area that a narrowed scope no longer sweeps all look identical from here — only a human can say which.',
+    source: MERGE_SOURCE,
+  });
+  return unknowns;
+}
+
 function mergeModel(existing, discovered) {
   const prev = new Map((existing?.entries || []).map(e => [e.id, e]));
   const found = new Set(discovered.map(e => e.id));
@@ -174,17 +226,7 @@ function mergeModel(existing, discovered) {
     const old = prev.get(d.id);
     if (!old) { added.push(d.id); return d; }
     kept.push(d.id);
-    // Note what is NOT reset here: a `stale` entry stays stale on rediscovery.
-    // A route that vanished and came back was deleted and re-added, renamed
-    // twice, or moved; the old page describes code nobody re-checked, so it must
-    // go through explain's refresh rather than quietly reverting to `traced`.
-    // Discovery wins on location and label; the trace wins on everything it earned.
-    // handler is discovery's field outright, including when it goes away: a route
-    // that now dispatches to a closure has no handler, and keeping the old one
-    // would present a stale reading as current.
-    const merged = { ...old, kind: d.kind, label: d.label, evidence: d.evidence };
-    if (d.handler) merged.handler = d.handler; else delete merged.handler;
-    return merged;
+    return mergeEntry(old, d);
   });
   const disappeared = [];
   for (const [id, old] of prev) if (!found.has(id)) {
@@ -195,17 +237,7 @@ function mergeModel(existing, discovered) {
     // that may not exist. `stale` says exactly what is true: needs re-checking.
     entries.push(old.coverage === 'traced' ? { ...old, coverage: 'stale' } : old);
   }
-  // Reported on stdout, a vanished entry point survives exactly as long as the
-  // console scrollback. Persist it as an unknown instead, so it reaches
-  // open-questions.md and the status count. Regenerated from scratch every run:
-  // no duplicates on a re-run, and it clears itself the moment the route is
-  // found again. Human-written unknowns are never touched.
-  const unknowns = (existing?.unknowns || []).filter(u => u.source !== MERGE_SOURCE);
-  for (const id of disappeared) unknowns.push({
-    text: `${prev.get(id).label} is in the inventory but the sweep no longer finds it.`,
-    why: 'A deleted route, a renamed one, a recipe that stopped matching, and an area that a narrowed scope no longer sweeps all look identical from here — only a human can say which.',
-    source: MERGE_SOURCE,
-  });
+  const unknowns = mergeUnknowns(existing, prev, disappeared);
   return { model: { version: 1, unknowns, entries }, added, kept, disappeared };
 }
 

@@ -68,3 +68,35 @@ test('a non-ASCII watched path still goes stale', () => {
   const model = M.loadModel(root);
   assert.deepStrictEqual(S.markStale(model, S.changedFilesSince(root, sha)), ['e1']);
 });
+
+test('an entry that was never traced is never staled, not even by an unreachable SHA', () => {
+  const model = { version: 1, unknowns: [], entries: [
+    { id: 'untraced', kind: 'http', label: 'U', evidence: [{ file: 'a.php', line: 1 }],
+      coverage: 'none', watch: ['a.php'] },
+    { id: 'already-stale', kind: 'http', label: 'S', evidence: [{ file: 'a.php', line: 1 }],
+      coverage: 'stale', watch: ['a.php'] } ] };
+  // changed === null stales every TRACED entry; entries with no trace to invalidate
+  // must keep their own coverage word instead of being relabelled 'stale'.
+  assert.deepStrictEqual(S.markStale(model, null), []);
+  assert.strictEqual(model.entries[0].coverage, 'none');
+  assert.strictEqual(model.entries[1].coverage, 'stale');
+});
+
+test('main with no argument runs against the current directory', () => {
+  const { root } = makeTempRepo();
+  write(root, 'a.php', 'v1');
+  const sha = commitAll(root, 'a');
+  M.saveModel(root, { version: 1, unknowns: [], entries: [{
+    id: 'e1', kind: 'http', label: 'E1', evidence: [{ file: 'a.php', line: 1 }],
+    coverage: 'traced', traced_at_sha: sha, watch: ['a.php'] }] });
+  write(root, 'a.php', 'v2'); commitAll(root, 'change');
+  const cwd = process.cwd();
+  const lines = [];
+  const log = console.log;
+  console.log = (...a) => lines.push(a.join(' '));
+  let code;
+  try { process.chdir(root); code = S.main([]); } finally { console.log = log; process.chdir(cwd); }
+  assert.strictEqual(code, 0);
+  assert.deepStrictEqual(lines, ['stale: e1']);
+  assert.strictEqual(M.loadModel(root).entries[0].coverage, 'stale'); // and it was persisted
+});
