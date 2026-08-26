@@ -92,9 +92,10 @@ jobs:
 
             Archie is half deterministic Node scripts under `scripts/`, half
             prompt surfaces (`skills/`, `agents/`). The design spec is
-            `docs/specs/2026-08-25-archie-design.md` and the implementation plan
-            is `docs/plans/2026-08-25-archie-v1.md` — read the relevant part
-            before judging intent. Review for:
+            `docs/specs/2026-08-25-archie-design.md` — read the relevant part
+            before judging intent. It is the living contract: a change that
+            alters behavior the spec describes must update the spec in the same
+            PR, and a PR that quietly contradicts it is a finding. Review for:
 
             - **Honesty invariants (highest priority).** Archie must never state
               system behavior without a `file:line` citation, and must never fill
