@@ -233,17 +233,22 @@ present in every Claude Code install.
 |---|---|---|
 | `inventory-worker` | `sonnet` | High-volume fan-out over a tight schema. A wrong answer here fails **loudly** — `validateModel` rejects it — so the cheaper model's mistakes get caught by the store, not shipped into the wiki. |
 | `tracer` | `opus` | Multi-file control-flow reading, where the failure is **silent**: a plausible wrong `file:line` validates fine and reads like evidence. |
-| `verifier` | `opus` | A verifier must never be weaker than what it verifies, or it confirms what it cannot actually check. |
+| `verifier` | `opus` | Its silent failure is confirming a wrong claim — the one failure the whole design exists to prevent. It runs once per explain, so the saving from a cheaper model is negligible against that risk. |
 
 The rule is **spend where the failure is silent**, not where the work is hard.
 
 Aliases, not pinned model IDs: a public plugin that hard-codes `claude-opus-5` breaks on the
 day that ID moves. `haiku` is deliberately unused — it is a generation behind (4.5) with a
 200K context, and its only advantage over the others is price, never capability; Archie's
-cheapest agent still has an honesty invariant to uphold. `fable` is unused too: it has no
-frontmatter alias (it would have to be pinned), it costs twice Opus, its edge is long-horizon
-agentic work rather than the bounded single-shot tasks here, and it is documented to do worse
-on heavily prescriptive prompts — which is exactly what these three agents are.
+cheapest agent still has an honesty invariant to uphold. `fable` is unused too — the alias
+exists, but the model costs twice Opus, its edge is long-horizon agentic work rather than the
+bounded single-shot tasks here, and it is documented to do worse on heavily prescriptive
+prompts — which is exactly what these three agents are.
+
+Claude Code's own docs suggest `sonnet` for review-type agents, but that advice is a cost
+argument ("balance of capability and cost"), and cost arguments are volume arguments. The
+high-volume agent here is already on `sonnet`; the verifier is once-per-explain, where the
+saving is noise and the silent-failure risk is not.
 
 None of this is measured. It is reasoned from where the failure modes are, and the first live
 run on a real legacy repo either confirms it or changes it.
