@@ -29,8 +29,10 @@ test('tracer fixture is a valid flow, and still the shape tracer.md promises', (
   // "Every unknown needs a why and, where you can name one, a look_at" — the
   // schema makes look_at optional, the fixture is the example of naming one.
   assert.ok(flow.unknowns.length >= 1);
-  for (const u of flow.unknowns)
-    assert.ok(u.look_at?.file && Number.isInteger(u.look_at.line), `unknown without a look_at: ${u.text}`);
+  for (const u of flow.unknowns) {
+    assert.ok(u.look_at?.file, `unknown with no look_at file: ${u.text}`);
+    assert.ok(Number.isInteger(u.look_at.line), `look_at line is not an integer: ${u.text}`);
+  }
 });
 
 test('verifier fixture: valid flow + audit log with only legal actions', () => {

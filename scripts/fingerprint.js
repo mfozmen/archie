@@ -53,31 +53,39 @@ function composeUnits(root) {
   for (const source of COMPOSE_FILES) {
     const compose = readIf(root, source);
     if (!compose) continue;
-    // ponytail: 2-space-indent service scan, not a YAML parser — upgrade if real files break it
     const lines = compose.split('\n');
     const svcIdx = lines.findIndex(l => /^services:\s*$/.test(l));
     if (svcIdx === -1) continue;
-    let processes = [];
-    const externals = [];
-    let current = null;
-    for (const l of lines.slice(svcIdx + 1)) {
-      if (/^\S/.test(l)) break;          // a top-level key ends the services block
-      const svc = l.match(/^ {2}(\w[\w-]*):\s*$/);
-      if (svc) { current = svc[1]; processes.push({ name: svc[1], kind: 'unknown', source }); continue; }
-      const img = l.match(/^\s+image:\s*(\S+)/);
-      const ext = img && current && img[1].match(EXTERNAL_IMAGES);
-      if (!ext) continue;
-      // A known backing service is not a process of ours: it is an external.
-      processes = processes.filter(p => p.name !== current);
-      externals.push({ name: ext[0], source });
-    }
-    return { processes, externals };
+    return scanServices(lines.slice(svcIdx + 1), source);
   }
   return { processes: [], externals: [] };
 }
+
+// ponytail: 2-space-indent service scan, not a YAML parser — upgrade if real files break it
+function scanServices(lines, source) {
+  let processes = [];
+  const externals = [];
+  let current = null;
+  for (const l of lines) {
+    if (/^\S/.test(l)) break;          // a top-level key ends the services block
+    const svc = l.match(/^ {2}(\w[\w-]*):\s*$/);
+    if (svc) { current = svc[1]; processes.push({ name: svc[1], kind: 'unknown', source }); continue; }
+    const img = l.match(/^\s+image:\s*(\S+)/);
+    const ext = img && current && img[1].match(EXTERNAL_IMAGES);
+    if (!ext) continue;
+    // A known backing service is not a process of ours: it is an external.
+    processes = processes.filter(p => p.name !== current);
+    externals.push({ name: ext[0], source });
+  }
+  return { processes, externals };
+}
+
+// A plain loop, not find()?.[1] ?? — every path returns a string, and it is
+// obvious that it does.
 function procKind(name) {
   if (name === 'web') return 'web';
-  return PROC_KINDS.find(([re]) => re.test(name))?.[1] ?? 'unknown';
+  for (const [re, kind] of PROC_KINDS) if (re.test(name)) return kind;
+  return 'unknown';
 }
 function procfileProcesses(root) {
   const proc = readIf(root, 'Procfile');
