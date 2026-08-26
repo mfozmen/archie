@@ -40,6 +40,5 @@
 | `scripts/` | Deterministic Node core — model store, sweep, staleness, churn, renderers |
 | `skills/` | The user-facing command prose, one directory per command |
 | `agents/` | The three subagent definitions and their JSON output contracts |
-| `docs/specs/` | The design spec — argue against it before changing behavior |
-| `docs/plans/` | The implementation plan |
+| `docs/specs/` | The design spec — the living contract. Argue against it before changing behavior, and change it in the same PR that changes behavior |
 | `tests/` | `node --test` suites, plus agent-contract fixtures |
