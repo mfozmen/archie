@@ -14,7 +14,7 @@ const { tryRun, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
 const { runMain } = require('./lib/cli');
 const { byCodePoint } = require('./lib/order');
-const { ownersLine } = require('./lib/codeowners');
+const { ownersLine, describeOwners } = require('./lib/codeowners');
 
 const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'];
 
@@ -60,7 +60,7 @@ function fromCodeowners(root, teams) {
   const out = [];
   for (const line of found.text.split('\n')) {
     const entry = parseOwnersLine(line, teams);
-    if (entry) out.push({ ...entry, source: 'codeowners', detail: `${found.rel} assigns it to ${entry.owners.join(' ')}` });
+    if (entry) out.push({ ...entry, source: 'codeowners', detail: `${found.rel} assigns it to ${describeOwners(entry.owners)}` });
   }
   return out.map(({ owners, ...rest }) => rest);
 }

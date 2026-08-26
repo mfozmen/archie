@@ -272,3 +272,20 @@ test('with no handle the answer is unknown, not no', () => {
   assert.strictEqual(W.gather(ws).repos[0].youAreNamed, null);
   assert.strictEqual(W.gather(ws, { handle: '@someone-else' }).repos[0].youAreNamed, true);
 });
+
+// The locked constraint says individuals are counted, never named — and the
+// place that broke it was not this file but the sibling one, whose `detail`
+// string is handed to the model and read out to the user. An invariant shipped
+// next to code that violates it is not an invariant.
+test('a directory proposal names teams and counts people, never naming them', () => {
+  const ws = makeWorkspace();
+  const p = repoIn(ws, 'a');
+  put(p, 'CODEOWNERS', 'app/ @org/orders-team @someone\napi/ @alice @bob\n');
+  const out = require('../scripts/scope').fromCodeowners(p);
+  const text = JSON.stringify(out);
+
+  assert.match(out[0].detail, /@org\/orders-team and 1 individual/);
+  assert.match(out[1].detail, /2 individuals/);
+  for (const handle of ['@someone', '@alice', '@bob'])
+    assert.ok(!text.includes(handle), `${handle} reached the user-facing text`);
+});

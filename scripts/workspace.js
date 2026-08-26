@@ -16,7 +16,7 @@ const { tryRun } = require('./lib/exec');
 const { readCodeowners } = require('./scope');
 const { runMain } = require('./lib/cli');
 const { byCodePoint } = require('./lib/order');
-const { ownersLine } = require('./lib/codeowners');
+const { ownersLine, splitOwners } = require('./lib/codeowners');
 
 // One level down only. A workspace is a directory of checkouts, not a tree to
 // crawl: descending further finds vendored copies and nested test fixtures and
@@ -57,7 +57,6 @@ function gitIdentities(workspace, repos) {
 // list of colleagues — and they are other people's names, which is not something
 // to copy into a prompt, a proposal or anything that might get pasted somewhere.
 // The count still goes out, so the omission is visible rather than silent.
-const TEAM = /^@[^/]+\/.+/;
 function ownersIn(repoPath, handle) {
   const found = readCodeowners(repoPath);
   // The file it came from, because CODEOWNERS lives in one of three places and
@@ -73,12 +72,13 @@ function ownersIn(repoPath, handle) {
     // Unlike scope.js, a catch-all is kept: `* @org/payments` does not say which
     // directory is theirs, but it does say the repository is in their world,
     // which is the whole question at this level.
-    for (const tok of parsed.owners) {
-      if (!tok.startsWith('@')) continue;
-      // The one individual worth naming is the person asking. Everybody else
+    const split = splitOwners(parsed.owners);
+    for (const t of split.teams) teams.add(t);
+    for (const ind of split.individuals) {
+      // The one individual worth reading is the person asking. Everybody else
       // stays a count — this is their own entry in a file, not a colleague's.
-      if (handle && tok.toLowerCase() === handle.toLowerCase()) you = true;
-      (TEAM.test(tok) ? teams : individuals).add(tok);
+      if (handle && ind.toLowerCase() === handle.toLowerCase()) you = true;
+      individuals.add(ind);
     }
   }
   // null, not false, when no handle was given: "we did not look" and "we looked
