@@ -18,7 +18,9 @@ function inventoryDrift(root, model) {
   const recipe = M.loadRecipe(root);
   if (!recipe) return null;                       // no recipe, no claim to make
   let hits;
-  try { hits = sweep(root, recipe).hits; }
+  // Scoped, or every run would report the whole rest of the repository as drift,
+  // forever, for an inventory that was never meant to cover it.
+  try { hits = sweep(root, recipe, { scope: M.loadConfig(root)?.scope }).hits; }
   catch (err) { return { error: err.message, unrepresented: [] }; }
   const citedByKind = new Map();
   for (const en of model.entries) {

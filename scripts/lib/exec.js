@@ -19,4 +19,12 @@ function hasBin(name) {
   try { run(process.platform === 'win32' ? 'where' : 'which', [name]); return true; }
   catch { return false; }
 }
-module.exports = { run, tryRun, hasBin, MAX_BUFFER };
+// git quotes any path outside ASCII by default — "routes/sipari\305\237.php" —
+// so a plain line split yields a path that matches nothing and the file vanishes
+// from the sweep with no error anywhere. -z turns off quoting AND newline
+// splitting, which also covers the rarer path containing a newline.
+function gitLines(root, args) {
+  const out = tryRun('git', ['-C', root, ...args, '-z']);
+  return out === null ? null : out.split('\0').filter(Boolean);
+}
+module.exports = { run, tryRun, hasBin, gitLines, MAX_BUFFER };

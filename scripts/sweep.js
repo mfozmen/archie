@@ -1,7 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { run, hasBin } = require('./lib/exec');
+const { run, hasBin, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
+const { inScope } = require('./scope');
 const M = require('./lib/model');
 
 const isComment = (text) => /^\s*(\/\/|#|\*|;|--)/.test(text);
@@ -25,8 +26,9 @@ function chunkFiles(files, budget = MAX_ARGV_BYTES) {
 }
 
 function trackedFiles(root) {
-  return run('git', ['-C', root, 'ls-files']).split('\n').filter(Boolean)
-    .filter(f => !f.startsWith(M.ARCHIE_DIR + '/'));
+  const files = gitLines(root, ['ls-files']);
+  if (files === null) throw new Error(`git ls-files failed in ${root} — not a repository?`);
+  return files.filter(f => !f.startsWith(M.ARCHIE_DIR + '/'));
 }
 function grepProbe(root, probe, files) {
   const hits = [];
@@ -68,7 +70,10 @@ function rgProbe(root, probe, files, maxArgvBytes) {
 function sweep(root, recipe, opts = {}) {
   M.validateRecipe(recipe);
   const useRg = opts.forceGrep === undefined ? hasBin('rg') : !opts.forceGrep;
-  const files = trackedFiles(root);   // ONE list for both paths
+  // Filtered HERE, before any probe runs — narrowing afterwards would have spent
+  // the work already. One list for both paths, so rg and grep still agree.
+  const all = trackedFiles(root);
+  const files = opts.scope ? all.filter(f => inScope(f, opts.scope)) : all;
   const hits = [], counts = [], zeroProbes = [];
   for (const probe of recipe.probes) {
     const h = useRg ? rgProbe(root, probe, files, opts.maxArgvBytes) : grepProbe(root, probe, files);
@@ -76,17 +81,21 @@ function sweep(root, recipe, opts = {}) {
     counts.push({ ...probe, hits: h.length });
     if (h.length === 0) zeroProbes.push(probe);
   }
-  return { hits, counts, zeroProbes };
+  return { hits, counts, zeroProbes, scoped: files.length !== all.length };
 }
 if (require.main === module) {
   const root = process.argv[2] || process.cwd();
   const recipe = M.loadRecipe(root);
   if (!recipe) { console.error('no .archie/recipe.json — derive one first'); process.exit(1); }
-  const res = sweep(root, recipe);
+  const res = sweep(root, recipe, { scope: M.loadConfig(root)?.scope });
   fs.mkdirSync(path.join(root, M.ARCHIE_DIR), { recursive: true });
   fs.writeFileSync(path.join(root, M.ARCHIE_DIR, 'sweep.json'), JSON.stringify(res.hits, null, 2) + '\n');
   for (const c of res.counts) console.log(`${c.kind.padEnd(10)} ${String(c.hits).padStart(5)}  ${c.glob} =~ ${c.pattern}`);
-  for (const z of res.zeroProbes) console.log(`⚠ 0 hits for ${z.kind} probe — recipe may be wrong; fix with /archie:recipe`);
+  // Under a scope, zero hits usually means "not in your area", not "bad recipe".
+  // Sending someone to fix a recipe that is fine wastes the one escape hatch.
+  for (const z of res.zeroProbes) console.log(res.scoped
+    ? `⚠ 0 hits for ${z.kind} probe within the configured scope — either it does not exist in your area, or the recipe is wrong`
+    : `⚠ 0 hits for ${z.kind} probe — recipe may be wrong; fix with /archie:recipe`);
   console.log(`${res.hits.length} candidate hits → .archie/sweep.json`);
 }
 module.exports = { sweep, chunkFiles, MAX_ARGV_BYTES };

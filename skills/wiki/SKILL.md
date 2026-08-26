@@ -22,7 +22,8 @@ at render time.
 node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$root"
 ```
 
-That writes, under `.archie/wiki/`:
+That writes, under the configured `output` directory (`.archie/wiki/` unless
+`/archie:config` changed it):
 
 - `md/index.md` — the entry-point table with coverage, plus everything not yet
   documented, and the topology diagram.
@@ -39,6 +40,12 @@ That writes, under `.archie/wiki/`:
 
 Print the output paths and offer to open `index.html`. Say plainly how much is
 covered — "12 of 48 entry points documented" is more useful than a page count.
-Remind the user that `.archie/wiki/` and `.archie/tmp/` are generated and belong
-in `.gitignore`;
+If a `scope` is configured, every page carries a banner saying it is **not a map
+of the whole system**. Do not soften or drop it when summarising: an inventory of
+12 endpoints read as "this system has 12 endpoints" is precisely the confident
+wrong belief this tool exists to prevent.
+
+Remind the user that the output directory and `.archie/tmp/` are generated and
+belong in `.gitignore` — unless they chose an output path they intend to commit,
+which is a legitimate choice for a map meant to be reviewed in pull requests;
 `model.json` and `flows/` are the things worth committing.

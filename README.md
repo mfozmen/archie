@@ -94,6 +94,14 @@ Run these in the repository you want to understand. Archie writes only to `.arch
 /archie:inventory
 ```
 
+On the first run it asks three questions, once: what language to write in, **what
+you are responsible for**, and where to put the output. For the second it proposes
+candidates with the evidence behind each — a `CODEOWNERS` assignment, how many of
+your own commits touched a directory — and you confirm or edit them. Scope narrows
+the sweep itself, and every page it produces then says outright that it is **not a
+map of the whole system**. Take the whole repository if you want it; scope is a
+convenience, not a recommendation.
+
 ```
 http         31  routes/**/*.php =~ Route::(get|post|put|patch|delete)
 queue         8  app/Jobs/**/*.php =~ implements ShouldQueue

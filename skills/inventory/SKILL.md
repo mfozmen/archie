@@ -8,16 +8,60 @@ description: Use when someone asks what is in a codebase, what its entry points 
 ## Preamble (every Archie skill does this first)
 
 1. `root="$(git rev-parse --show-toplevel)"`. Not a git repository → say so and stop.
-2. If `$root/.archie/config.json` is missing, ask **one** question: which language
-   should the narrative be written in? Guess a default from the repo's README and
-   offer it. Write `{"language":"<code>"}` to a file, then store it — `store.js` is
-   the only thing that writes into `.archie/`, including on the first run:
-
-   ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
-   ```
+2. If `$root/.archie/config.json` is missing, run the **first-run setup** below.
+   It is three questions, asked once, and it decides what the map will contain —
+   so ask them rather than picking for the user.
 3. Narrative text is written in the configured language. Identifiers — file paths,
    route labels, class names, entry-point ids — are **never** translated.
+
+## First-run setup — three questions, asked once
+
+**1. Language.** Which language should the narrative be written in? Guess a
+default from the repo's README and offer it. Identifiers are never translated.
+
+**2. Scope — what are you responsible for?** On anything larger than a small
+service, inventorying everything buries the part the user actually owns. Propose
+candidates rather than guessing:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$root"
+```
+
+Each candidate carries the evidence for it: a `CODEOWNERS` assignment, how many
+of the user's own commits touched the directory, or — only when neither exists —
+that it is simply a top-level directory. Show them with that evidence, ask which
+apply, and let the user add, remove or edit paths freely. **Offer "the whole
+repository" as a real option** and take it when chosen; scope is a convenience,
+not something to talk anyone into.
+
+If the user names a team (`@acme/orders-team`), pass it so `CODEOWNERS` can be
+filtered to their team's areas:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$root" "$(git -C "$root" config user.email)" @acme/orders-team
+```
+
+**3. Where should the wiki be written?** Default is `.archie/wiki/`, which keeps
+generated files out of the way. Offer something browsable in the repo —
+`docs/system-map/` is a good suggestion — because a map nobody opens is a map
+nobody reads. Whatever is chosen must be inside the repository; `store.js`
+refuses anything else.
+
+Then write and store the answers:
+
+```json
+{ "language": "en",
+  "output": "docs/system-map",
+  "scope": { "label": "Orders", "paths": ["app/Orders/**", "routes/api.php"] } }
+```
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
+```
+
+Omit `scope` entirely for a whole-repository map — an empty `paths` and no
+`scope` mean the same thing, and neither adds a caveat to the rendered pages.
+Every later run reads this file; `/archie:config` changes any of it.
 
 Scratch JSON goes under `$root/.archie/tmp/` (`mkdir -p` it first), never a fixed
 path in `/tmp`: two
@@ -67,6 +111,9 @@ is the escape hatch for a home-grown router the model has never seen.
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep.js" "$root"
 ```
+
+The sweep reads the configured scope itself and narrows the file list before any
+probe runs — filtering afterwards would have spent the work already.
 
 Print the per-probe counts and **every zero-hit warning verbatim**. A probe with
 0 hits means the recipe is probably wrong; never let it pass silently. The hits

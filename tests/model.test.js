@@ -216,3 +216,25 @@ test('watchFromFlow collects every file the page actually depends on', () => {
 test('watchFromFlow never returns empty for a flow with any citation', () => {
   assert.ok(M.watchFromFlow(flow).length > 0);
 });
+
+test('config validates scope and output, and refuses to escape the repo', () => {
+  const { root } = makeTempRepo();
+  M.saveConfig(root, { language: 'tr', output: 'docs/system-map',
+    scope: { label: 'Orders', paths: ['app/Orders/**'] } });
+  assert.strictEqual(M.loadConfig(root).output, 'docs/system-map');
+
+  assert.throws(() => M.saveConfig(root, { output: 42 }), /output/);
+  // Rendered output is written without asking. It must not be able to land
+  // outside the repository, whatever ends up in the config file.
+  for (const bad of ['../elsewhere', '/etc/archie', 'docs/../../out'])
+    assert.throws(() => M.saveConfig(root, { output: bad }), /output/, bad);
+  assert.throws(() => M.saveConfig(root, { scope: { paths: 'app' } }), /scope/);
+  assert.throws(() => M.saveConfig(root, { scope: { paths: ['app'], label: 7 } }), /scope/);
+});
+
+test('outputDir defaults to the wiki directory under .archie', () => {
+  const { root } = makeTempRepo();
+  assert.strictEqual(M.outputDir(root), path.join(root, '.archie', 'wiki'));
+  M.saveConfig(root, { output: 'docs/system-map' });
+  assert.strictEqual(M.outputDir(root), path.join(root, 'docs', 'system-map'));
+});

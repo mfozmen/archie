@@ -80,3 +80,20 @@ test('a long drift list is capped, and says how many it did not print', () => {
   assert.strictEqual(listed.length, 10);
   assert.match(out, /5 more not shown/);
 });
+
+test('drift respects the configured scope', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/Orders/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  write(root, 'app/Billing/api.php', "<?php\nRoute::get('/invoices', 'C@i');\n");
+  commitAll(root, 'routes');
+  M.saveRecipe(root, { stack: 'generic', probes: [
+    { kind: 'http', glob: 'app/**/*.php', pattern: 'Route::(get|post)' } ] });
+  M.saveModel(root, { version: 1, unknowns: [], entries: [] });
+
+  assert.strictEqual(statusReport(root).inventoryDrift.unrepresented.length, 2);
+  M.saveConfig(root, { scope: { label: 'Orders', paths: ['app/Orders'] } });
+  // Billing is not drift. It was never in scope, so it is not something the
+  // inventory is behind on.
+  assert.deepStrictEqual(statusReport(root).inventoryDrift.unrepresented,
+    [{ kind: 'http', file: 'app/Orders/api.php' }]);
+});
