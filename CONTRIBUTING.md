@@ -25,6 +25,14 @@
    `.leak-patterns` (gitignored) with one case-insensitive regex per line.
    Committing that list would itself be the leak.
 
+   The hook only sees what goes through git. Issue, PR, and release text does
+   not, so write it to a file and scan that before sending — unenforced, and
+   yours to remember:
+
+   ```bash
+   bash scripts/leak-scan.sh --file body.md && gh issue create --body-file body.md
+   ```
+
 ## Workflow
 
 - Branch off `master`, one topic per branch.
