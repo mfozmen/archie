@@ -16,6 +16,7 @@ const { tryRun } = require('./lib/exec');
 const { readCodeowners } = require('./scope');
 const { runMain } = require('./lib/cli');
 const { byCodePoint } = require('./lib/order');
+const { ownersLine } = require('./lib/codeowners');
 
 // One level down only. A workspace is a directory of checkouts, not a tree to
 // crawl: descending further finds vendored copies and nested test fixtures and
@@ -62,10 +63,12 @@ function ownersIn(repoPath) {
   if (!found) return { teams: [], individuals: 0 };
   const teams = new Set(), individuals = new Set();
   for (const line of found.text.split('\n')) {
-    const hash = line.indexOf('#');
-    const trimmed = (hash === -1 ? line : line.slice(0, hash)).trim();
-    if (!trimmed) continue;
-    for (const tok of trimmed.split(/\s+/).slice(1)) {
+    const parsed = ownersLine(line);
+    if (!parsed) continue;
+    // Unlike scope.js, a catch-all is kept: `* @org/payments` does not say which
+    // directory is theirs, but it does say the repository is in their world,
+    // which is the whole question at this level.
+    for (const tok of parsed.owners) {
       if (!tok.startsWith('@')) continue;
       (TEAM.test(tok) ? teams : individuals).add(tok);
     }

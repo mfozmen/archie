@@ -221,3 +221,16 @@ test('a leading markdown link is skipped like a badge is', () => {
   put(p, 'README.md', '# a\n\n[Documentation](https://example.com/docs)\n\nHandles refunds.\n');
   assert.strictEqual(W.describe(p), 'Handles refunds.');
 });
+
+// The two callers read a CODEOWNERS line the same way and decide about it
+// differently. This pins the difference so neither drifts into the other.
+test('a catch-all owner counts for a repository and not for a directory', () => {
+  const ws = makeWorkspace();
+  const p = repoIn(ws, 'a');
+  put(p, 'CODEOWNERS', '* @org/payments\n');
+  // At repo level a catch-all says the repository is in that team's world.
+  assert.deepStrictEqual(W.ownersIn(p).teams, ['@org/payments']);
+  // At directory level it says only who to ask by default, which is not
+  // evidence that any particular directory is theirs.
+  assert.deepStrictEqual(require('../scripts/scope').fromCodeowners(p), []);
+});

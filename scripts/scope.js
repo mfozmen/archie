@@ -14,6 +14,7 @@ const { tryRun, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
 const { runMain } = require('./lib/cli');
 const { byCodePoint } = require('./lib/order');
+const { ownersLine } = require('./lib/codeowners');
 
 const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'];
 
@@ -33,14 +34,12 @@ function readCodeowners(root) {
   return null;
 }
 
-// Split out so fromCodeowners stays one loop, and so the trimming is done with
-// indexOf/split rather than regexes a scanner has to reason about backtracking in.
+// Split out so fromCodeowners stays one loop. The reading of the line is shared
+// with workspace.js; what is decided about it is this caller's own.
 function parseOwnersLine(line, teams) {
-  const hash = line.indexOf('#');
-  const trimmed = (hash === -1 ? line : line.slice(0, hash)).trim();
-  if (!trimmed) return null;
-  const [pattern, ...owners] = trimmed.split(/\s+/);
-  if (!owners.length) return null;
+  const parsed = ownersLine(line);
+  if (!parsed) return null;
+  const { pattern, owners } = parsed;
   // A catch-all owner says who to ask when nothing else matches. It is not
   // evidence that this is anybody's area in particular.
   if (pattern === '*' || pattern === '/*') return null;
