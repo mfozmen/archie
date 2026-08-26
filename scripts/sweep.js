@@ -3,7 +3,7 @@ const path = require('node:path');
 const { run, hasBin, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
 const { inScope } = require('./scope');
-const { runMain } = require('./lib/cli');
+const { runMain, paths } = require('./lib/cli');
 const M = require('./lib/model');
 
 const isComment = (text) => /^\s*(\/\/|#|\*|;|--)/.test(text);
@@ -87,19 +87,19 @@ function sweep(root, recipe, opts = {}) {
   return { hits, counts, zeroProbes, scoped: Boolean(opts.scope?.paths?.length) };
 }
 function main(args) {
-  const root = args[0] || process.cwd();
-  const recipe = M.loadRecipe(root);
-  if (!recipe) { console.error('no .archie/recipe.json — derive one first'); return 1; }
-  const res = sweep(root, recipe, { scope: M.loadConfig(root)?.scope });
-  fs.mkdirSync(path.join(root, M.ARCHIE_DIR), { recursive: true });
-  fs.writeFileSync(path.join(root, M.ARCHIE_DIR, 'sweep.json'), JSON.stringify(res.hits, null, 2) + '\n');
+  const { repo, store } = paths(args);
+  const recipe = M.loadRecipe(store);
+  if (!recipe) { console.error(`no ${path.join(store, 'recipe.json')} — derive one first`); return 1; }
+  const res = sweep(repo, recipe, { scope: M.loadConfig(store)?.scope });
+  fs.mkdirSync(store, { recursive: true });
+  fs.writeFileSync(path.join(store, 'sweep.json'), JSON.stringify(res.hits, null, 2) + '\n');
   for (const c of res.counts) console.log(`${c.kind.padEnd(10)} ${String(c.hits).padStart(5)}  ${c.glob} =~ ${c.pattern}`);
   // Under a scope, zero hits usually means "not in your area", not "bad recipe".
   // Sending someone to fix a recipe that is fine wastes the one escape hatch.
   for (const z of res.zeroProbes) console.log(res.scoped
     ? `⚠ 0 hits for ${z.kind} probe within the configured scope — either it does not exist in your area, or the recipe is wrong`
     : `⚠ 0 hits for ${z.kind} probe — recipe may be wrong; fix with /archie:recipe`);
-  console.log(`${res.hits.length} candidate hits → .archie/sweep.json`);
+  console.log(`${res.hits.length} candidate hits → ${path.join(store, 'sweep.json')}`);
   return 0;
 }
 runMain(module, main);

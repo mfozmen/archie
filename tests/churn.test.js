@@ -40,7 +40,7 @@ test('main with no argument ranks the current directory', () => {
   const { root } = makeTempRepo();
   write(root, 'hot.php', 'v1'); write(root, 'cold.php', 'v1'); commitAll(root, 'c1');
   write(root, 'hot.php', 'v2'); commitAll(root, 'c2');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [
     { id: 'a', kind: 'http', label: 'Cold one', evidence: [{ file: 'cold.php', line: 1 }], coverage: 'none', watch: [] },
     { id: 'b', kind: 'http', label: 'Hot one', evidence: [{ file: 'nothing.php', line: 7 }], coverage: 'none', watch: ['hot.php', '*.md'] } ] });
   const cwd = process.cwd();

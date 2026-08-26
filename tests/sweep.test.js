@@ -160,7 +160,7 @@ test('sweep.js with no arguments sweeps the directory it was run in', () => {
   const { root } = makeTempRepo();
   write(root, 'routes/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
   commitFixture(root);
-  M.saveRecipe(root, { stack: 'generic', probes: [
+  M.saveRecipe(M.storeFor(root), { stack: 'generic', probes: [
     { kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' } ] });
   const out = execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'sweep.js')],
     { cwd: root, encoding: 'utf8' });

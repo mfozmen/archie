@@ -18,7 +18,7 @@ function repoWithModel() {
   const { root } = makeTempRepo();
   write(root, 'routes/api.php', '<?php');
   commitAll(root, 'files');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [
     { id: 'http.GET./a', kind: 'http', label: 'GET /a', evidence: [{ file: 'routes/api.php', line: 1 }],
       coverage: 'none', watch: [] } ] });
   return root;
@@ -41,7 +41,7 @@ test('with no path argument the renderer maps the current directory', () => {
 // pages — a render that ignores config.json would ship an unscoped-looking map.
 test('a configured scope reaches every file the renderer writes', () => {
   const root = repoWithModel();
-  M.saveConfig(root, { scope: { label: 'Orders', paths: ['app/Orders/**'] } });
+  M.saveConfig(M.storeFor(root), { scope: { label: 'Orders', paths: ['app/Orders/**'] } });
   assert.strictEqual(quiet(() => main([root])), 0);
   const wiki = path.join(root, '.archie', 'wiki');
   const read = (p) => fs.readFileSync(path.join(wiki, p), 'utf8');

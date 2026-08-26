@@ -15,9 +15,9 @@ const flow = { id: 'http.POST./api/orders', summary: 'Creates an order.',
 
 test('model round-trips and validates', () => {
   const { root } = makeTempRepo();
-  assert.strictEqual(M.loadModel(root), null);
-  M.saveModel(root, { version: 1, entries: [entry], unknowns: [] });
-  const back = M.loadModel(root);
+  assert.strictEqual(M.loadModel(M.storeFor(root)), null);
+  M.saveModel(M.storeFor(root), { version: 1, entries: [entry], unknowns: [] });
+  const back = M.loadModel(M.storeFor(root));
   assert.strictEqual(back.entries[0].label, 'POST /api/orders');
   assert.ok(fs.existsSync(path.join(root, '.archie', 'model.json')));
 });
@@ -30,20 +30,20 @@ test('invalid model throws with every violation listed', () => {
 
 test('flow round-trips under slug filename; bad flow throws', () => {
   const { root } = makeTempRepo();
-  M.saveFlow(root, flow);
+  M.saveFlow(M.storeFor(root), flow);
   assert.ok(fs.existsSync(path.join(root, '.archie', 'flows', 'http-post-api-orders.json')));
-  assert.strictEqual(M.loadFlow(root, flow.id).summary, 'Creates an order.');
-  assert.strictEqual(M.listFlows(root).length, 1);
+  assert.strictEqual(M.loadFlow(M.storeFor(root), flow.id).summary, 'Creates an order.');
+  assert.strictEqual(M.listFlows(M.storeFor(root)).length, 1);
   assert.throws(() => M.validateFlow({ ...flow, answers: { entry: [] } }), /answers/);
 });
 
 test('config and recipe round-trip', () => {
   const { root } = makeTempRepo();
-  M.saveConfig(root, { language: 'tr' });
-  assert.strictEqual(M.loadConfig(root).language, 'tr');
-  M.saveRecipe(root, { stack: 'PHP 8 / generic', probes: [{ kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' }] });
-  assert.strictEqual(M.loadRecipe(root).probes.length, 1);
-  assert.throws(() => M.saveRecipe(root, { stack: 'x', probes: [{ kind: 'http' }] }), /glob|pattern/);
+  M.saveConfig(M.storeFor(root), { language: 'tr' });
+  assert.strictEqual(M.loadConfig(M.storeFor(root)).language, 'tr');
+  M.saveRecipe(M.storeFor(root), { stack: 'PHP 8 / generic', probes: [{ kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' }] });
+  assert.strictEqual(M.loadRecipe(M.storeFor(root)).probes.length, 1);
+  assert.throws(() => M.saveRecipe(M.storeFor(root), { stack: 'x', probes: [{ kind: 'http' }] }), /glob|pattern/);
 });
 
 test('malformed answers value is rejected, not crashed on', () => {
@@ -74,19 +74,19 @@ test('two entries that collide on one flow filename are rejected', () => {
 
 test('a corrupt flow file is named, not rendered and not swallowed', () => {
   const { root } = makeTempRepo();
-  M.saveFlow(root, flow);
+  M.saveFlow(M.storeFor(root), flow);
   fs.writeFileSync(path.join(root, '.archie', 'flows', 'broken.json'), '{ "id": "x" }\n');
-  assert.throws(() => M.listFlows(root), /flows\/broken\.json/);
+  assert.throws(() => M.listFlows(M.storeFor(root)), /flows\/broken\.json/);
 
   fs.writeFileSync(path.join(root, '.archie', 'flows', 'broken.json'), 'not json at all');
-  assert.throws(() => M.listFlows(root), /flows\/broken\.json/);
+  assert.throws(() => M.listFlows(M.storeFor(root)), /flows\/broken\.json/);
 });
 
 test('loadFlow validates too', () => {
   const { root } = makeTempRepo();
   fs.mkdirSync(path.join(root, '.archie', 'flows'), { recursive: true });
   fs.writeFileSync(path.join(root, '.archie', 'flows', 'a-b.json'), '{ "id": "a.b" }\n');
-  assert.throws(() => M.loadFlow(root, 'a.b'), /a-b\.json/);
+  assert.throws(() => M.loadFlow(M.storeFor(root), 'a.b'), /a-b\.json/);
 });
 
 test('mergeModel keeps what explain proved and reports what moved', () => {
@@ -219,24 +219,24 @@ test('watchFromFlow never returns empty for a flow with any citation', () => {
 
 test('config validates scope and output, and refuses to escape the repo', () => {
   const { root } = makeTempRepo();
-  M.saveConfig(root, { language: 'tr', output: 'docs/system-map',
+  M.saveConfig(M.storeFor(root), { language: 'tr', output: 'docs/system-map',
     scope: { label: 'Orders', paths: ['app/Orders/**'] } });
-  assert.strictEqual(M.loadConfig(root).output, 'docs/system-map');
+  assert.strictEqual(M.loadConfig(M.storeFor(root)).output, 'docs/system-map');
 
-  assert.throws(() => M.saveConfig(root, { output: 42 }), /output/);
+  assert.throws(() => M.saveConfig(M.storeFor(root), { output: 42 }), /output/);
   // Rendered output is written without asking. It must not be able to land
   // outside the repository, whatever ends up in the config file.
   for (const bad of ['../elsewhere', '/etc/archie', 'docs/../../out'])
-    assert.throws(() => M.saveConfig(root, { output: bad }), /output/, bad);
-  assert.throws(() => M.saveConfig(root, { scope: { paths: 'app' } }), /scope/);
-  assert.throws(() => M.saveConfig(root, { scope: { paths: ['app'], label: 7 } }), /scope/);
+    assert.throws(() => M.saveConfig(M.storeFor(root), { output: bad }), /output/, bad);
+  assert.throws(() => M.saveConfig(M.storeFor(root), { scope: { paths: 'app' } }), /scope/);
+  assert.throws(() => M.saveConfig(M.storeFor(root), { scope: { paths: ['app'], label: 7 } }), /scope/);
 });
 
 test('outputDir defaults to the wiki directory under .archie', () => {
   const { root } = makeTempRepo();
-  assert.strictEqual(M.outputDir(root), path.join(root, '.archie', 'wiki'));
-  M.saveConfig(root, { output: 'docs/system-map' });
-  assert.strictEqual(M.outputDir(root), path.join(root, 'docs', 'system-map'));
+  assert.strictEqual(M.outputDir(M.storeFor(root), root), path.join(root, '.archie', 'wiki'));
+  M.saveConfig(M.storeFor(root), { output: 'docs/system-map' });
+  assert.strictEqual(M.outputDir(M.storeFor(root), root), path.join(root, 'docs', 'system-map'));
 });
 
 test('output must not resolve to the repository root', () => {
@@ -244,7 +244,7 @@ test('output must not resolve to the repository root', () => {
   // "." passes an isAbsolute/".." check and then renders index.html over
   // whatever the repository already has at its root.
   for (const bad of ['.', './', '', '././.'])
-    assert.throws(() => M.saveConfig(root, { output: bad }), /output/, JSON.stringify(bad));
-  M.saveConfig(root, { output: './docs/map' });
-  assert.strictEqual(M.outputDir(root), path.join(root, 'docs', 'map'));
+    assert.throws(() => M.saveConfig(M.storeFor(root), { output: bad }), /output/, JSON.stringify(bad));
+  M.saveConfig(M.storeFor(root), { output: './docs/map' });
+  assert.strictEqual(M.outputDir(M.storeFor(root), root), path.join(root, 'docs', 'map'));
 });

@@ -37,7 +37,7 @@ test('status: no model is an explained failure, not a stack trace', () => {
 test('status: prints coverage, stale entries and unknowns on demand', () => {
   const { root } = makeTempRepo();
   write(root, 'a.php', 'v1'); const sha = commitAll(root, 'a');
-  M.saveModel(root, { version: 1, unknowns: [{ text: 'an open question', why: 'w' }], entries: [
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [{ text: 'an open question', why: 'w' }], entries: [
     { id: 'e1', kind: 'http', label: 'E1', evidence: [{ file: 'a.php', line: 1 }],
       coverage: 'traced', traced_at_sha: sha, watch: ['a.php'] } ] });
   const { main } = require('../scripts/status');
@@ -66,7 +66,7 @@ test('sweep: reports counts, zero probes and writes sweep.json', () => {
   const { root } = makeTempRepo();
   write(root, 'routes/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
   commitAll(root, 'routes');
-  M.saveRecipe(root, { stack: 'generic', probes: [
+  M.saveRecipe(M.storeFor(root), { stack: 'generic', probes: [
     { kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' },
     { kind: 'cli', glob: 'bin/**/*', pattern: 'nothing-here' } ] });
 
@@ -78,7 +78,7 @@ test('sweep: reports counts, zero probes and writes sweep.json', () => {
 
   // Under a scope the same zero reads differently, and must not send someone off
   // to fix a recipe that is fine.
-  M.saveConfig(root, { scope: { label: 'Routes', paths: ['routes'] } });
+  M.saveConfig(M.storeFor(root), { scope: { label: 'Routes', paths: ['routes'] } });
   r = capture(() => require('../scripts/sweep').main([root]));
   assert.match(r.out, /within the configured scope/);
 });
@@ -90,7 +90,7 @@ test('churn: no model is an explained failure; otherwise it ranks', () => {
 
   write(root, 'hot.php', 'v1'); commitAll(root, 'c1');
   write(root, 'hot.php', 'v2'); commitAll(root, 'c2');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [
     { id: 'a', kind: 'http', label: 'GET /hot', evidence: [{ file: 'hot.php', line: 1 }],
       coverage: 'none', watch: [] } ] });
   const r = capture(() => main([root]));
@@ -104,14 +104,14 @@ test('staleness: no model is an explained failure; otherwise it marks and says s
   assert.strictEqual(capture(() => main([root])).code, 1);
 
   write(root, 'a.php', 'v1'); const sha = commitAll(root, 'a');
-  M.saveModel(root, { version: 1, unknowns: [], entries: [
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [
     { id: 'e1', kind: 'http', label: 'E1', evidence: [{ file: 'a.php', line: 1 }],
       coverage: 'traced', traced_at_sha: sha, watch: ['a.php'] } ] });
   assert.match(capture(() => main([root])).out, /nothing stale/);
 
   write(root, 'a.php', 'v2'); commitAll(root, 'change');
   assert.match(capture(() => main([root])).out, /stale: e1/);
-  assert.strictEqual(M.loadModel(root).entries[0].coverage, 'stale');
+  assert.strictEqual(M.loadModel(M.storeFor(root)).entries[0].coverage, 'stale');
 });
 
 test('fingerprint and scope print JSON for the skill to read', () => {
@@ -131,7 +131,7 @@ test('render: no model is an explained failure; otherwise it writes both sets', 
   const { main } = require('../scripts/render');
   assert.strictEqual(capture(() => main([root])).code, 1);
 
-  M.saveModel(root, { version: 1, unknowns: [], entries: [
+  M.saveModel(M.storeFor(root), { version: 1, unknowns: [], entries: [
     { id: 'http.GET./a', kind: 'http', label: 'GET /a', evidence: [{ file: 'r.php', line: 1 }],
       coverage: 'none', watch: [] } ] });
   const fs = require('node:fs');

@@ -1,7 +1,8 @@
+const path = require('node:path');
 const M = require('./lib/model');
 const { changedFilesSince, markStale } = require('./staleness');
 const { sweep } = require('./sweep');
-const { runMain } = require('./lib/cli');
+const { runMain, paths } = require('./lib/cli');
 const DRIFT_PRINT_LIMIT = 10;
 
 // Flow staleness catches code moving under a page that was traced. It cannot
@@ -15,13 +16,13 @@ const DRIFT_PRINT_LIMIT = 10;
 // edit, and crying "new entry point" whenever someone adds an import would make
 // the signal worthless. This undercounts on purpose: a new route added to an
 // already-known file will not show up. Undercounting is the honest failure.
-function inventoryDrift(root, model) {
-  const recipe = M.loadRecipe(root);
+function inventoryDrift(repo, store, model) {
+  const recipe = M.loadRecipe(store);
   if (!recipe) return null;                       // no recipe, no claim to make
   let hits;
   // Scoped, or every run would report the whole rest of the repository as drift,
   // forever, for an inventory that was never meant to cover it.
-  try { hits = sweep(root, recipe, { scope: M.loadConfig(root)?.scope }).hits; }
+  try { hits = sweep(repo, recipe, { scope: M.loadConfig(store)?.scope }).hits; }
   catch (err) { return { error: err.message, unrepresented: [] }; }
   const citedByKind = new Map();
   for (const en of model.entries) {
@@ -38,28 +39,28 @@ function inventoryDrift(root, model) {
   return { unrepresented };
 }
 
-function statusReport(root) {
-  const model = M.loadModel(root);
-  if (!model) throw new Error('no .archie/model.json — run /archie:inventory first');
+function statusReport(repo, store = M.storeFor(repo)) {
+  const model = M.loadModel(store);
+  if (!model) throw new Error(`no ${path.join(store, 'model.json')} — run /archie:inventory first`);
   for (const en of model.entries)
-    if (en.coverage === 'traced') markStale({ entries: [en] }, changedFilesSince(root, en.traced_at_sha));
-  M.saveModel(root, model);
+    if (en.coverage === 'traced') markStale({ entries: [en] }, changedFilesSince(repo, en.traced_at_sha));
+  M.saveModel(store, model);
   const total = model.entries.length;
   const traced = model.entries.filter(e => e.coverage === 'traced').length;
   const staleIds = model.entries.filter(e => e.coverage === 'stale').map(e => e.id);
   const unknowns = [
     ...model.unknowns.map(u => ({ source: 'inventory', text: u.text })),
-    ...M.listFlows(root).flatMap(f => f.unknowns.map(u => ({ source: f.id, text: u.text }))),
+    ...M.listFlows(store).flatMap(f => f.unknowns.map(u => ({ source: f.id, text: u.text }))),
   ];
   return { total, traced, stale: staleIds.length, pct: total ? Math.round(100 * traced / total) : 0,
-    staleIds, unknowns, inventoryDrift: inventoryDrift(root, model) };
+    staleIds, unknowns, inventoryDrift: inventoryDrift(repo, store, model) };
 }
 function main(args) {
-  const root = args.find(a => !a.startsWith('--')) || process.cwd();
+  const { repo, store, rest: flags } = paths(args);
   let r;
   // No model is the normal state before the first inventory, not a crash worth a
   // stack trace at someone trying the tool for the first time.
-  try { r = statusReport(root); }
+  try { r = statusReport(repo, store); }
   catch (err) { console.error(err.message); return 1; }
   console.log(`${r.total} entry points · ${r.traced} documented (${r.pct}%) · ${r.stale} stale`);
   r.staleIds.forEach(id => console.log(`  stale: ${id}  → refresh with /archie:explain "${id}"`));
@@ -67,7 +68,7 @@ function main(args) {
   // Every wiki page says when it is scoped. The terminal report has the same
   // duty: a clean drift line read as "nothing is missing" is exactly wrong when
   // the check only ever looked at one directory.
-  const scope = M.loadConfig(root)?.scope;
+  const scope = M.loadConfig(store)?.scope;
   if (scope?.paths?.length)
     console.log(`scoped to ${scope.label || 'a subset of this repository'} — ${scope.paths.join(', ')}; ` +
       `everything outside was never swept`);
@@ -83,7 +84,7 @@ function main(args) {
     if (rest > 0) console.log(`  … ${rest} more not shown`);
     console.log('  → re-run /archie:inventory (it merges; your traced flows survive)');
   }
-  if (args.includes('--unknowns')) r.unknowns.forEach(u => console.log(`  [${u.source}] ${u.text}`));
+  if (flags.includes('--unknowns')) r.unknowns.forEach(u => console.log(`  [${u.source}] ${u.text}`));
   return 0;
 }
 runMain(module, main);
