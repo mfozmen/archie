@@ -1,5 +1,11 @@
 # Archie
 
+[![test](https://github.com/mfozmen/archie/actions/workflows/test.yml/badge.svg)](https://github.com/mfozmen/archie/actions/workflows/test.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=mfozmen_archie&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mfozmen_archie)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=mfozmen_archie&metric=coverage)](https://sonarcloud.io/component_measures?id=mfozmen_archie&metric=coverage)
+[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=mfozmen_archie&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=mfozmen_archie)
+[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=mfozmen_archie&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=mfozmen_archie)
+
 Understand a legacy codebase by reading it — step by step, with evidence, never with guesses.
 
 Archie is a [Claude Code](https://docs.claude.com/en/docs/claude-code) plugin for the day you

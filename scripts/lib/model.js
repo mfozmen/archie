@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { slug } = require('./slug');
+const { byCodePoint } = require('./order');
 const ARCHIE_DIR = '.archie';
 const KINDS = ['http', 'queue', 'cron', 'cli', 'event', 'public-api'];
 const COVERAGE = ['none', 'traced', 'stale'];
@@ -50,8 +51,8 @@ function validateFlow(flow) {
   const e = [];
   if (!flow?.id) e.push('id required');
   if (!flow?.summary) e.push('summary required');
-  const keys = Object.keys(flow?.answers || {}).sort().join(',');
-  if (keys !== [...ANSWER_KEYS].sort().join(',')) e.push(`answers must have exactly keys ${ANSWER_KEYS.join(',')}`);
+  const keys = Object.keys(flow?.answers || {}).sort(byCodePoint).join(',');
+  if (keys !== [...ANSWER_KEYS].sort(byCodePoint).join(',')) e.push(`answers must have exactly keys ${ANSWER_KEYS.join(',')}`);
   else for (const k of ANSWER_KEYS) {
     // The key-set check above proves the six names are present, not that they
     // hold arrays. A raw TypeError here would break the "throws listing every
@@ -158,7 +159,7 @@ function watchFromFlow(flow) {
       for (const t of c.tests || []) if (t.file) files.add(t.file);
     }
   for (const u of flow.unknowns || []) if (u.look_at?.file) files.add(u.look_at.file);
-  return [...files].sort();
+  return [...files].sort(byCodePoint);
 }
 
 const MERGE_SOURCE = 'inventory-merge';
@@ -212,7 +213,7 @@ module.exports = {
   loadFlow: (root, id) => readFlow(root, slug(id) + '.json'),
   saveFlow: (root, f) => { validateFlow(f); writeJson(dir(root, 'flows', slug(f.id) + '.json'), f); },
   listFlows: (root) => fs.existsSync(dir(root, 'flows'))
-    ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).sort().map(n => readFlow(root, n))
+    ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).sort(byCodePoint).map(n => readFlow(root, n))
     : [],
   loadConfig: (root) => readJson(dir(root, 'config.json')),
   saveConfig: (root, c) => { validateConfig(c); writeJson(dir(root, 'config.json'), c); },

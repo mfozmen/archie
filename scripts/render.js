@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { slug } = require('./lib/slug');
+const { byCodePoint } = require('./lib/order');
 const M = require('./lib/model');
 const { runMain } = require('./lib/cli');
 
@@ -140,7 +141,7 @@ function renderHtml(model, flows, fp, mermaidJs, scope) {
   const flowById = new Map(flows.map(f => [f.id, f]));
   const entries = [...model.entries].sort((a, b) => a.id.localeCompare(b.id));
   const nav = [];
-  for (const kind of [...new Set(entries.map(e => e.kind))].sort()) {
+  for (const kind of [...new Set(entries.map(e => e.kind))].sort(byCodePoint)) {
     nav.push(`<h3>${esc(kind)}</h3><ul>`);
     for (const en of entries.filter(e => e.kind === kind))
       nav.push(`<li data-name="${esc(en.label.toLowerCase())}">` +

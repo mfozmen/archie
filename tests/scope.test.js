@@ -78,3 +78,12 @@ test('a hex-named file at the repository root is not read as a commit', () => {
   assert.deepStrictEqual(hist.map(x => x.path), ['app/Orders']);
   assert.match(hist[0].detail, /of your 1 commits/);  // not 2, which a loose regex would give
 });
+
+test('ordering does not depend on the machine locale', () => {
+  const { byCodePoint } = require('../scripts/lib/order');
+  // Turkish 'ş' is beyond 'z' in code-point order. Whatever the host locale
+  // thinks, the answer has to be the same everywhere, or two machines render
+  // two different wikis from one model.
+  assert.deepStrictEqual(['zebra', 'sipariş', 'app'].sort(byCodePoint), ['app', 'sipariş', 'zebra']);
+  assert.strictEqual(byCodePoint('a', 'a'), 0);
+});

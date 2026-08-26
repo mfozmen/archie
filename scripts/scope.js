@@ -13,6 +13,7 @@ const path = require('node:path');
 const { tryRun, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
 const { runMain } = require('./lib/cli');
+const { byCodePoint } = require('./lib/order');
 
 const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'];
 
@@ -92,7 +93,7 @@ function fromTree(root) {
     const top = f.split('/')[0];
     if (f.includes('/') && !top.startsWith('.')) tops.add(top);
   }
-  return [...tops].sort().map(p => ({ path: p, source: 'tree', detail: 'a top-level directory' }));
+  return [...tops].sort(byCodePoint).map(p => ({ path: p, source: 'tree', detail: 'a top-level directory' }));
 }
 
 // Ordered by how strong the claim is. The tree is a last resort: it says nothing
