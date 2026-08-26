@@ -1,6 +1,6 @@
 ---
 name: recipe
-description: Use when the inventory sweep missed entry points, reported a zero-hit probe, or does not understand a home-grown router. Edits the per-repo search recipe.
+description: Correct the search recipe when the sweep missed your framework's entry points. Use when the inventory reported a zero-hit probe or does not understand a home-grown router. Edits the per-repo search recipe.
 ---
 
 # recipe — fix what the sweep looks for

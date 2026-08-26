@@ -5,9 +5,13 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const SURFACES = ['inventory', 'explain', 'wiki', 'status', 'recipe', 'config'];
 
-test('every command has a skill and every skill mentions its script or agent', () => {
+// There are no commands/*.md wrappers: a skill is already invocable as
+// /archie:<name>, and shipping both put two entries per name in the slash
+// picker. This asserts the surface stays skill-only — a reintroduced wrapper
+// would silently double the menu again.
+test('every surface is a skill, with no command wrapper beside it', () => {
+  assert.ok(!fs.existsSync(path.join(root, 'commands')), 'commands/ must not come back');
   for (const s of SURFACES) {
-    assert.ok(fs.existsSync(path.join(root, 'commands', s + '.md')), s + ' command');
     const skill = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
     assert.ok(skill.length > 200, s + ' skill non-trivial');
     if (['wiki', 'status'].includes(s)) assert.match(skill, /scripts\/(render|status)\.js/);
@@ -44,7 +48,6 @@ test('the focus hint is documented as steering, never as evidence', () => {
     assert.match(src, /where to look, not what to (conclude|find)/i,
       name + ' states that a hint is not evidence');
   }
-  assert.match(fs.readFileSync(path.join(root, 'commands', 'explain.md'), 'utf8'), /focus/i);
 });
 
 // Every write to .archie/ goes through store.js, from a file. Inline `node -e`

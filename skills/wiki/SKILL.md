@@ -1,6 +1,6 @@
 ---
 name: wiki
-description: Use when someone wants the whole map rendered — a browsable wiki, diagrams, or an OpenAPI draft from what Archie already knows. Purely deterministic; generates no new content.
+description: Render the wiki from the model — markdown, a single-file HTML page, and an OpenAPI draft. Use when someone wants the whole map rendered from what Archie already knows. Purely deterministic; generates no new content.
 ---
 
 # wiki — "Show me everything"

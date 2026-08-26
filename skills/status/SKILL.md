@@ -1,6 +1,6 @@
 ---
 name: status
-description: Use when someone asks how much of the system is documented, what has gone stale, or what questions are still open. Deterministic, LLM-free, seconds.
+description: Show coverage, staleness and every open question — where are we? Use when someone asks how much of the system is documented, what has gone stale, or what questions are still open. Deterministic, LLM-free, seconds.
 ---
 
 # status — "Where are we?"
