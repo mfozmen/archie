@@ -81,27 +81,30 @@ function validateFlow(flow) {
 // The config decides where rendered files are written, so it is the one place a
 // bad value turns into a write outside the repository. Validated like everything
 // else rather than trusted because "the user typed it".
+function checkOutput(output, e) {
+  if (typeof output !== 'string' || !output) { e.push('output must be a non-empty string'); return; }
+  if (path.isAbsolute(output) || path.normalize(output).split(path.sep)[0] === '..') {
+    e.push('output must be a relative path inside the repository'); return;
+  }
+  // "." passes both checks above and then renders index.html straight over
+  // whatever the repository keeps at its root. path.relative answers this
+  // directly, with no regex to walk a trailing-separator run.
+  if (path.relative('.', output) === '') e.push('output must be a subdirectory, not the repository root');
+}
+
+function checkScope(scope, e) {
+  if (!scope || typeof scope !== 'object') { e.push('scope must be an object'); return; }
+  if (!Array.isArray(scope.paths)) e.push('scope.paths must be an array');
+  else if (scope.paths.some(p => typeof p !== 'string' || !p)) e.push('scope.paths must be non-empty strings');
+  if (scope.label !== undefined && typeof scope.label !== 'string') e.push('scope.label must be a string');
+}
+
 function validateConfig(c) {
   const e = [];
   if (!c || typeof c !== 'object') e.push('config must be an object');
   if (c?.language !== undefined && typeof c.language !== 'string') e.push('language must be a string');
-  if (c?.output !== undefined) {
-    if (typeof c.output !== 'string' || !c.output) e.push('output must be a non-empty string');
-    else if (path.isAbsolute(c.output) || path.normalize(c.output).split(path.sep)[0] === '..')
-      e.push('output must be a relative path inside the repository');
-    // "." passes both checks above and then renders index.html straight over
-    // whatever the repository keeps at its root.
-    else if (['.', ''].includes(path.normalize(c.output).replace(/[\\/]+$/, '')))
-      e.push('output must be a subdirectory, not the repository root');
-  }
-  if (c?.scope !== undefined) {
-    if (!c.scope || typeof c.scope !== 'object') e.push('scope must be an object');
-    else {
-      if (!Array.isArray(c.scope.paths)) e.push('scope.paths must be an array');
-      else if (c.scope.paths.some(p => typeof p !== 'string' || !p)) e.push('scope.paths must be non-empty strings');
-      if (c.scope.label !== undefined && typeof c.scope.label !== 'string') e.push('scope.label must be a string');
-    }
-  }
+  if (c?.output !== undefined) checkOutput(c.output, e);
+  if (c?.scope !== undefined) checkScope(c.scope, e);
   fail(e);
 }
 

@@ -54,7 +54,11 @@ jobs:
       - name: Coverage
         run: |
           mkdir -p coverage
-          node --test --experimental-test-coverage \
+          # 100% lines, enforced. Every uncovered line here is a line nobody
+          # has ever run — which for a CLI is where exit codes and the wording a
+          # user meets live. Functions and branches are not at 100 yet and are
+          # deliberately not gated at a number nobody has argued for: see #18.
+          node --test --experimental-test-coverage --test-coverage-lines=100 \
             --test-reporter=lcov --test-reporter-destination=coverage/lcov.info \
             --test-reporter=spec --test-reporter-destination=stdout
       # Secrets are not available to a pull request from a fork, so this would

@@ -33,26 +33,37 @@ function readCodeowners(root) {
   return null;
 }
 
+// Split out so fromCodeowners stays one loop, and so the trimming is done with
+// indexOf/split rather than regexes a scanner has to reason about backtracking in.
+function parseOwnersLine(line, teams) {
+  const hash = line.indexOf('#');
+  const trimmed = (hash === -1 ? line : line.slice(0, hash)).trim();
+  if (!trimmed) return null;
+  const [pattern, ...owners] = trimmed.split(/\s+/);
+  if (!owners.length) return null;
+  // A catch-all owner says who to ask when nothing else matches. It is not
+  // evidence that this is anybody's area in particular.
+  if (pattern === '*' || pattern === '/*') return null;
+  if (teams?.length && !owners.some(o => teams.includes(o))) return null;
+  return { path: trimSlashes(pattern), owners };
+}
+
+const trimSlashes = (s) => {
+  let a = 0, b = s.length;
+  while (a < b && s[a] === '/') a++;
+  while (b > a && s[b - 1] === '/') b--;
+  return s.slice(a, b);
+};
+
 function fromCodeowners(root, teams) {
   const found = readCodeowners(root);
   if (!found) return [];
   const out = [];
   for (const line of found.text.split('\n')) {
-    const trimmed = line.replace(/#.*$/, '').trim();
-    if (!trimmed) continue;
-    const [pattern, ...owners] = trimmed.split(/\s+/);
-    if (!owners.length) continue;
-    // A catch-all owner says who to ask when nothing else matches. It is not
-    // evidence that this is anybody's area in particular.
-    if (pattern === '*' || pattern === '/*') continue;
-    if (teams?.length && !owners.some(o => teams.includes(o))) continue;
-    out.push({
-      path: pattern.replace(/^\/+/, '').replace(/\/+$/, ''),
-      source: 'codeowners',
-      detail: `${found.rel} assigns it to ${owners.join(' ')}`,
-    });
+    const entry = parseOwnersLine(line, teams);
+    if (entry) out.push({ ...entry, source: 'codeowners', detail: `${found.rel} assigns it to ${entry.owners.join(' ')}` });
   }
-  return out;
+  return out.map(({ owners, ...rest }) => rest);
 }
 
 // What you have actually touched beats what an ownership file says you own, in
