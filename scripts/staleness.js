@@ -1,5 +1,6 @@
 const { tryRun, gitLines } = require('./lib/exec');
 const M = require('./lib/model');
+const { runMain } = require('./lib/cli');
 
 // Returns null when `sha` is unreachable — squash-merge, rebase, `git gc` of an
 // unreferenced commit, or a shallow clone all make a recorded traced_at_sha vanish.
@@ -29,10 +30,10 @@ function markStale(model, changed) {
   }
   return staled;
 }
-if (require.main === module) {
-  const root = process.argv[2] || process.cwd();
+function main(args) {
+  const root = args[0] || process.cwd();
   const model = M.loadModel(root);
-  if (!model) { console.error('no .archie/model.json — run /archie:inventory first'); process.exit(1); }
+  if (!model) { console.error('no .archie/model.json — run /archie:inventory first'); return 1; }
   const perEntry = new Map(model.entries.filter(e => e.coverage === 'traced')
     .map(e => [e.id, changedFilesSince(root, e.traced_at_sha)]));
   const staled = [];
@@ -42,5 +43,7 @@ if (require.main === module) {
   M.saveModel(root, model);
   staled.forEach(id => console.log(`stale: ${id}`));
   if (!staled.length) console.log('nothing stale');
+  return 0;
 }
-module.exports = { changedFilesSince, matchesWatch, markStale };
+runMain(module, main);
+module.exports = { changedFilesSince, matchesWatch, markStale, main };

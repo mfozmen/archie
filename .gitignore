@@ -4,3 +4,4 @@ node_modules/
 .leak-patterns
 .claude/settings.local.json
 test.log
+coverage/

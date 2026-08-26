@@ -3,6 +3,7 @@ const path = require('node:path');
 const { run, hasBin, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
 const { inScope } = require('./scope');
+const { runMain } = require('./lib/cli');
 const M = require('./lib/model');
 
 const isComment = (text) => /^\s*(\/\/|#|\*|;|--)/.test(text);
@@ -81,12 +82,14 @@ function sweep(root, recipe, opts = {}) {
     counts.push({ ...probe, hits: h.length });
     if (h.length === 0) zeroProbes.push(probe);
   }
-  return { hits, counts, zeroProbes, scoped: files.length !== all.length };
+  // Configured, not "it happened to exclude something". A scope that excludes
+  // nothing today is still the reason a zero means "not in your area".
+  return { hits, counts, zeroProbes, scoped: Boolean(opts.scope?.paths?.length) };
 }
-if (require.main === module) {
-  const root = process.argv[2] || process.cwd();
+function main(args) {
+  const root = args[0] || process.cwd();
   const recipe = M.loadRecipe(root);
-  if (!recipe) { console.error('no .archie/recipe.json — derive one first'); process.exit(1); }
+  if (!recipe) { console.error('no .archie/recipe.json — derive one first'); return 1; }
   const res = sweep(root, recipe, { scope: M.loadConfig(root)?.scope });
   fs.mkdirSync(path.join(root, M.ARCHIE_DIR), { recursive: true });
   fs.writeFileSync(path.join(root, M.ARCHIE_DIR, 'sweep.json'), JSON.stringify(res.hits, null, 2) + '\n');
@@ -97,5 +100,7 @@ if (require.main === module) {
     ? `⚠ 0 hits for ${z.kind} probe within the configured scope — either it does not exist in your area, or the recipe is wrong`
     : `⚠ 0 hits for ${z.kind} probe — recipe may be wrong; fix with /archie:recipe`);
   console.log(`${res.hits.length} candidate hits → .archie/sweep.json`);
+  return 0;
 }
-module.exports = { sweep, chunkFiles, MAX_ARGV_BYTES };
+runMain(module, main);
+module.exports = { sweep, chunkFiles, MAX_ARGV_BYTES, main };

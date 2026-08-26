@@ -33,3 +33,41 @@ jobs:
           fi
       - name: Leak scanner self-check
         run: bash scripts/leak-scan.test.sh
+
+  # Its own job, not a matrix entry: the coverage threshold flags need Node 22+,
+  # and branch protection is pinned to the names test (18), test (22), test (24).
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: Sonar attributes findings to "new code" via git blame, and
+      # a shallow clone makes everything look like it landed in one commit.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # sweep's ripgrep branch is the default path wherever rg is installed.
+      # Without it here, that code is both unrun and uncounted.
+      - name: Install ripgrep
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+      - name: Coverage
+        run: |
+          mkdir -p coverage
+          # 100% lines, enforced. Every uncovered line here is a line nobody
+          # has ever run — which for a CLI is where exit codes and the wording a
+          # user meets live. Functions and branches are not at 100 yet and are
+          # deliberately not gated at a number nobody has argued for: see #18.
+          node --test --experimental-test-coverage --test-coverage-lines=100 \
+            --test-reporter=lcov --test-reporter-destination=coverage/lcov.info \
+            --test-reporter=spec --test-reporter-destination=stdout
+      # Secrets are not available to a pull request from a fork, so this would
+      # fail and show an outside contributor a red X they cannot do anything
+      # about. The coverage report above still runs for them.
+      - name: SonarCloud
+        if: >-
+          github.event_name == 'push' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

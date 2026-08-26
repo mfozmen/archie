@@ -1,7 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { slug } = require('./lib/slug');
+const { byCodePoint } = require('./lib/order');
 const M = require('./lib/model');
+const { runMain } = require('./lib/cli');
 
 const QUESTIONS = [
   ['entry', 'Where does it enter?'], ['guards', 'Who may call it?'], ['decisions', 'What does it decide?'],
@@ -57,14 +59,15 @@ function scopeNote(scope, markdown = true) {
   const b = markdown ? '**' : '';
   const c = markdown ? '`' : '';
   const what = scope.label ? `${b}${scope.label}${b}` : 'a subset of this repository';
-  return `Scoped to ${what} — ${scope.paths.map(p => `${c}${p}${c}`).join(', ')}. ` +
+  const paths = scope.paths.map(p => c + p + c).join(', ');
+  return `Scoped to ${what} — ${paths}. ` +
     `This is ${b}not a map of the whole system${b}: anything outside those paths was never swept.`;
 }
 
 function renderMarkdownPages(model, flows, fp, scope) {
   const pages = new Map();
   const flowIds = new Set(flows.map(f => f.id));
-  const byId = (a, b) => a.id.localeCompare(b.id);
+  const byId = (a, b) => byCodePoint(a.id, b.id);
   const note = scopeNote(scope);
   const idx = ['# System map', ''];
   if (note) idx.push('> ' + note, '');
@@ -92,42 +95,66 @@ function renderMarkdownPages(model, flows, fp, scope) {
 // prove from static evidence is left as a visible TODO rather than invented.
 const yamlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
-function renderOpenapi(model, flows, scope) {
+function httpPathsByUrl(model, flows) {
   const flowById = new Map(flows.map(f => [f.id, f]));
   const paths = new Map();
-  for (const en of [...model.entries].sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const en of [...model.entries].sort((a, b) => byCodePoint(a.id, b.id))) {
     if (en.kind !== 'http') continue;
     const m = en.label.match(/^([A-Z]+) (\/\S*)$/);
+    // An entry whose label is not "<METHOD> <path>" is skipped and said out
+    // loud, rather than guessed into a shape OpenAPI will accept.
     if (!m) { console.error(`skipping ${en.id}: label is not "<METHOD> <path>"`); continue; }
     const [, method, urlPath] = m;
     if (!paths.has(urlPath)) paths.set(urlPath, []);
     paths.get(urlPath).push({ method: method.toLowerCase(), en, flow: flowById.get(en.id) });
   }
-  const note = scopeNote(scope);
+  return paths;
+}
+
+function paramLines(params) {
+  if (!params.length) return [];
+  const out = ['      parameters:'];
+  for (const name of params)
+    out.push(`        - name: ${yamlStr(name)}`, '          in: path', '          required: true', '          schema:', '            type: string');
+  return out;
+}
+
+// Only a returns claim that actually contains a 3-digit code becomes a status
+// code. Everything else is 'default' — inventing 200 because it is usually 200
+// is exactly the kind of plausible guess this project refuses to make.
+function responseLines(flow) {
+  const returns = flow?.answers.returns ?? [];
+  if (!returns.length) return ["        'default':", "          description: 'Not yet documented'"];
+  const out = [];
+  for (const c of returns) {
+    const code = (c.text.match(/\b(\d{3})\b/) || [])[1];
+    const key = code ? `'${code}'` : "'default'";
+    out.push(`        ${key}:`, `          description: ${yamlStr(c.text)}`);
+  }
+  return out;
+}
+
+function operationLines({ method, en, flow }, params) {
+  const at = en.evidence[0];
+  return [
+    `    ${method}:`,
+    `      description: ${yamlStr(flow?.summary || 'Not yet documented')}`,
+    `      x-archie-evidence: ${yamlStr(at.file + ':' + at.line)}`,
+    ...paramLines(params),
+    '      # TODO: body schema not derivable from static evidence',
+    '      responses:',
+    ...responseLines(flow),
+  ];
+}
+
+function renderOpenapi(model, flows, scope) {
   const out = ['openapi: 3.0.3', 'info:', "  title: 'Archie draft'", "  version: '0.1.0'"];
-  if (note) out.push(`  description: ${yamlStr(scopeNote(scope, false))}`);
+  if (scopeNote(scope)) out.push(`  description: ${yamlStr(scopeNote(scope, false))}`);
   out.push('paths:');
-  for (const [urlPath, ops] of paths) {
+  for (const [urlPath, ops] of httpPathsByUrl(model, flows)) {
     out.push(`  ${urlPath}:`);
     const params = [...urlPath.matchAll(/\{([^}]+)\}/g)].map(x => x[1]);
-    for (const { method, en, flow } of ops) {
-      out.push(`    ${method}:`);
-      out.push(`      description: ${yamlStr(flow?.summary || 'Not yet documented')}`);
-      out.push(`      x-archie-evidence: ${yamlStr(`${en.evidence[0].file}:${en.evidence[0].line}`)}`);
-      if (params.length) {
-        out.push('      parameters:');
-        for (const name of params)
-          out.push(`        - name: ${yamlStr(name)}`, '          in: path', '          required: true', '          schema:', '            type: string');
-      }
-      out.push('      # TODO: body schema not derivable from static evidence');
-      out.push('      responses:');
-      const returns = flow?.answers.returns ?? [];
-      if (!returns.length) out.push("        'default':", "          description: 'Not yet documented'");
-      else for (const c of returns) {
-        const code = (c.text.match(/\b(\d{3})\b/) || [])[1];
-        out.push(`        ${code ? `'${code}'` : "'default'"}:`, `          description: ${yamlStr(c.text)}`);
-      }
-    }
+    for (const op of ops) out.push(...operationLines(op, params));
   }
   return out.join('\n') + '\n';
 }
@@ -135,40 +162,61 @@ function renderOpenapi(model, flows, scope) {
 // --- Single-file HTML wiki ---------------------------------------------------
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function renderHtml(model, flows, fp, mermaidJs, scope) {
-  const flowById = new Map(flows.map(f => [f.id, f]));
-  const entries = [...model.entries].sort((a, b) => a.id.localeCompare(b.id));
+function navList(entries, flowById) {
   const nav = [];
-  for (const kind of [...new Set(entries.map(e => e.kind))].sort()) {
+  for (const kind of [...new Set(entries.map(e => e.kind))].sort(byCodePoint)) {
     nav.push(`<h3>${esc(kind)}</h3><ul>`);
-    for (const en of entries.filter(e => e.kind === kind))
-      nav.push(`<li data-name="${esc(en.label.toLowerCase())}">` +
-        (flowById.has(en.id) ? `<a href="#${esc(slug(en.id))}">${esc(en.label)}</a>` : esc(en.label)) +
-        ` <span class="badge ${esc(en.coverage)}">${esc(en.coverage)}</span></li>`);
+    for (const en of entries.filter(e => e.kind === kind)) {
+      const label = flowById.has(en.id)
+        ? `<a href="#${esc(slug(en.id))}">${esc(en.label)}</a>`
+        : esc(en.label);
+      nav.push(`<li data-name="${esc(en.label.toLowerCase())}">${label} ` +
+        `<span class="badge ${esc(en.coverage)}">${esc(en.coverage)}</span></li>`);
+    }
     nav.push('</ul>');
   }
-  const note = scopeNote(scope);
+  return nav.join('');
+}
+
+function claimItems(claims) {
+  return '<ul>' + claims.map(c => `<li>${esc(c.text)} <code>${esc(c.evidence.file)}:${c.evidence.line}</code>` +
+    (c.tests?.length ? ' <span class="tested">tested</span>' : ' <span class="untested">(untested)</span>') +
+    '</li>').join('') + '</ul>';
+}
+
+function unknownItems(unknowns) {
+  if (!unknowns.length) return '<p class="none">none</p>';
+  return '<ul>' + unknowns.map(u => `<li class="warn">⚠ ${esc(u.text)} — ${esc(u.why)}` +
+    (u.look_at ? ` · look at <code>${esc(u.look_at.file)}:${u.look_at.line}</code>` : '') +
+    '</li>').join('') + '</ul>';
+}
+
+function flowSection(f, note) {
+  const body = [`<section id="${esc(slug(f.id))}"><h2>${esc(f.id)}</h2>`];
+  if (note) body.push(`<p class="warn">${esc(note)}</p>`);
+  body.push(`<p>${esc(f.summary)}</p>`);
+  for (const [key, q] of QUESTIONS) {
+    body.push(`<h3>${esc(q)}</h3>`);
+    const claims = f.answers[key];
+    if (!claims.length) body.push(key === 'guards' ? '<p class="warn">no guard found ⚠</p>' : '<p class="none">nothing recorded</p>');
+    else body.push(claimItems(claims));
+  }
+  body.push('<h3>Unknowns</h3>', unknownItems(f.unknowns));
+  body.push(`<pre class="mermaid">${esc(mermaidSequence(f))}</pre></section>`);
+  return body.join('');
+}
+
+function renderHtml(model, flows, fp, mermaidJs, scope) {
+  const flowById = new Map(flows.map(f => [f.id, f]));
+  const entries = [...model.entries].sort((a, b) => byCodePoint(a.id, b.id));
+  const note = scopeNote(scope, false);
+  const nav = navList(entries, flowById);
   const sections = [`<section id="overview"><h1>System map</h1>` +
-    (note ? `<p class="warn">${esc(scopeNote(scope, false))}</p>` : '') +
+    (note ? `<p class="warn">${esc(note)}</p>` : '') +
     `<p>${entries.length} entry points</p>` +
     `<pre class="mermaid">${esc(mermaidTopology(fp))}</pre></section>`];
-  for (const f of [...flows].sort((a, b) => a.id.localeCompare(b.id))) {
-    const body = [`<section id="${esc(slug(f.id))}"><h2>${esc(f.id)}</h2><p>${esc(f.summary)}</p>`];
-    for (const [key, q] of QUESTIONS) {
-      body.push(`<h3>${esc(q)}</h3>`);
-      const claims = f.answers[key];
-      if (!claims.length) body.push(key === 'guards' ? '<p class="warn">no guard found ⚠</p>' : '<p class="none">nothing recorded</p>');
-      else body.push('<ul>' + claims.map(c => `<li>${esc(c.text)} <code>${esc(c.evidence.file)}:${c.evidence.line}</code>` +
-        (c.tests?.length ? ' <span class="tested">tested</span>' : ' <span class="untested">(untested)</span>') + '</li>').join('') + '</ul>');
-    }
-    body.push('<h3>Unknowns</h3>');
-    body.push(f.unknowns.length
-      ? '<ul>' + f.unknowns.map(u => `<li class="warn">⚠ ${esc(u.text)} — ${esc(u.why)}` +
-          (u.look_at ? ` · look at <code>${esc(u.look_at.file)}:${u.look_at.line}</code>` : '') + '</li>').join('') + '</ul>'
-      : '<p class="none">none</p>');
-    body.push(`<pre class="mermaid">${esc(mermaidSequence(f))}</pre></section>`);
-    sections.push(body.join(''));
-  }
+  for (const f of [...flows].sort((a, b) => byCodePoint(a.id, b.id))) sections.push(flowSection(f, note));
+
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Archie — system map</title>
 <style>
@@ -186,7 +234,7 @@ nav li{padding:.15rem 0}
 code{background:#8881;padding:0 .25em;border-radius:3px}
 section{border-bottom:1px solid #8884;padding-bottom:1rem;margin-bottom:1rem}
 </style></head><body>
-<nav><input id="filter" placeholder="filter entry points">${nav.join('')}</nav>
+<nav><input id="filter" placeholder="filter entry points">${nav}</nav>
 <main>${sections.join('')}</main>
 <script>
 document.getElementById('filter').addEventListener('input', function (e) {
@@ -202,10 +250,18 @@ document.getElementById('filter').addEventListener('input', function (e) {
 `;
 }
 
-if (require.main === module) {
-  const root = process.argv[2] || process.cwd();
+// Say so rather than shipping a wiki whose diagrams silently never render.
+function readMermaid(pluginRoot) {
+  const vendored = path.join(pluginRoot, 'vendor', 'mermaid.min.js');
+  if (fs.existsSync(vendored)) return fs.readFileSync(vendored, 'utf8');
+  console.error('vendor/mermaid.min.js missing — diagrams will not render in index.html');
+  return '';
+}
+
+function main(args) {
+  const root = args[0] || process.cwd();
   const model = M.loadModel(root);
-  if (!model) { console.error('no model — run /archie:inventory'); process.exit(1); }
+  if (!model) { console.error('no model — run /archie:inventory'); return 1; }
   const { fingerprint } = require('./fingerprint');
   const flows = M.listFlows(root);
   const fp = fingerprint(root);
@@ -216,15 +272,13 @@ if (require.main === module) {
   fs.mkdirSync(out, { recursive: true });
   for (const [name, content] of pages) fs.writeFileSync(path.join(out, name), content);
   console.log(`${pages.size} markdown pages → ${path.relative(root, out)}`);
-  if (process.argv.includes('--md')) return;
+  if (args.includes('--md')) return 0;
 
-  // Say so rather than shipping a wiki whose diagrams silently never render.
-  const vendored = path.join(__dirname, '..', 'vendor', 'mermaid.min.js');
-  let mermaidJs = '';
-  if (fs.existsSync(vendored)) mermaidJs = fs.readFileSync(vendored, 'utf8');
-  else console.error('vendor/mermaid.min.js missing — diagrams will not render in index.html');
+  const mermaidJs = readMermaid(path.join(__dirname, '..'));
   fs.writeFileSync(path.join(wiki, 'index.html'), renderHtml(model, flows, fp, mermaidJs, scope));
   fs.writeFileSync(path.join(wiki, 'openapi.yaml'), renderOpenapi(model, flows, scope));
   console.log(`wiki → ${path.relative(root, path.join(wiki, 'index.html'))}, openapi.yaml`);
+  return 0;
 }
-module.exports = { mermaidSequence, mermaidTopology, renderMarkdownPages, renderOpenapi, renderHtml };
+runMain(module, main);
+module.exports = { mermaidSequence, mermaidTopology, renderMarkdownPages, renderOpenapi, renderHtml, readMermaid, main };

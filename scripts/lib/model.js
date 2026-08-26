@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { slug } = require('./slug');
+const { byCodePoint } = require('./order');
 const ARCHIE_DIR = '.archie';
 const KINDS = ['http', 'queue', 'cron', 'cli', 'event', 'public-api'];
 const COVERAGE = ['none', 'traced', 'stale'];
@@ -50,8 +51,8 @@ function validateFlow(flow) {
   const e = [];
   if (!flow?.id) e.push('id required');
   if (!flow?.summary) e.push('summary required');
-  const keys = Object.keys(flow?.answers || {}).sort().join(',');
-  if (keys !== [...ANSWER_KEYS].sort().join(',')) e.push(`answers must have exactly keys ${ANSWER_KEYS.join(',')}`);
+  const keys = Object.keys(flow?.answers || {}).sort(byCodePoint).join(',');
+  if (keys !== [...ANSWER_KEYS].sort(byCodePoint).join(',')) e.push(`answers must have exactly keys ${ANSWER_KEYS.join(',')}`);
   else for (const k of ANSWER_KEYS) {
     // The key-set check above proves the six names are present, not that they
     // hold arrays. A raw TypeError here would break the "throws listing every
@@ -80,27 +81,30 @@ function validateFlow(flow) {
 // The config decides where rendered files are written, so it is the one place a
 // bad value turns into a write outside the repository. Validated like everything
 // else rather than trusted because "the user typed it".
+function checkOutput(output, e) {
+  if (typeof output !== 'string' || !output) { e.push('output must be a non-empty string'); return; }
+  if (path.isAbsolute(output) || path.normalize(output).split(path.sep)[0] === '..') {
+    e.push('output must be a relative path inside the repository'); return;
+  }
+  // "." passes both checks above and then renders index.html straight over
+  // whatever the repository keeps at its root. path.relative answers this
+  // directly, with no regex to walk a trailing-separator run.
+  if (path.relative('.', output) === '') e.push('output must be a subdirectory, not the repository root');
+}
+
+function checkScope(scope, e) {
+  if (!scope || typeof scope !== 'object') { e.push('scope must be an object'); return; }
+  if (!Array.isArray(scope.paths)) e.push('scope.paths must be an array');
+  else if (scope.paths.some(p => typeof p !== 'string' || !p)) e.push('scope.paths must be non-empty strings');
+  if (scope.label !== undefined && typeof scope.label !== 'string') e.push('scope.label must be a string');
+}
+
 function validateConfig(c) {
   const e = [];
   if (!c || typeof c !== 'object') e.push('config must be an object');
   if (c?.language !== undefined && typeof c.language !== 'string') e.push('language must be a string');
-  if (c?.output !== undefined) {
-    if (typeof c.output !== 'string' || !c.output) e.push('output must be a non-empty string');
-    else if (path.isAbsolute(c.output) || path.normalize(c.output).split(path.sep)[0] === '..')
-      e.push('output must be a relative path inside the repository');
-    // "." passes both checks above and then renders index.html straight over
-    // whatever the repository keeps at its root.
-    else if (['.', ''].includes(path.normalize(c.output).replace(/[\\/]+$/, '')))
-      e.push('output must be a subdirectory, not the repository root');
-  }
-  if (c?.scope !== undefined) {
-    if (!c.scope || typeof c.scope !== 'object') e.push('scope must be an object');
-    else {
-      if (!Array.isArray(c.scope.paths)) e.push('scope.paths must be an array');
-      else if (c.scope.paths.some(p => typeof p !== 'string' || !p)) e.push('scope.paths must be non-empty strings');
-      if (c.scope.label !== undefined && typeof c.scope.label !== 'string') e.push('scope.label must be a string');
-    }
-  }
+  if (c?.output !== undefined) checkOutput(c.output, e);
+  if (c?.scope !== undefined) checkScope(c.scope, e);
   fail(e);
 }
 
@@ -158,7 +162,7 @@ function watchFromFlow(flow) {
       for (const t of c.tests || []) if (t.file) files.add(t.file);
     }
   for (const u of flow.unknowns || []) if (u.look_at?.file) files.add(u.look_at.file);
-  return [...files].sort();
+  return [...files].sort(byCodePoint);
 }
 
 const MERGE_SOURCE = 'inventory-merge';
@@ -212,7 +216,7 @@ module.exports = {
   loadFlow: (root, id) => readFlow(root, slug(id) + '.json'),
   saveFlow: (root, f) => { validateFlow(f); writeJson(dir(root, 'flows', slug(f.id) + '.json'), f); },
   listFlows: (root) => fs.existsSync(dir(root, 'flows'))
-    ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).sort().map(n => readFlow(root, n))
+    ? fs.readdirSync(dir(root, 'flows')).filter(n => n.endsWith('.json')).sort(byCodePoint).map(n => readFlow(root, n))
     : [],
   loadConfig: (root) => readJson(dir(root, 'config.json')),
   saveConfig: (root, c) => { validateConfig(c); writeJson(dir(root, 'config.json'), c); },

@@ -8,6 +8,7 @@
 // handled") would break a shell-quoted argument long before node saw it.
 const fs = require('node:fs');
 const M = require('./lib/model');
+const { runMain } = require('./lib/cli');
 
 const USAGE = `usage: store.js <root> <what> <file.json>
   recipe            validate and write .archie/recipe.json
@@ -17,28 +18,33 @@ const USAGE = `usage: store.js <root> <what> <file.json>
   merge-inventory   merge a discovered entry array into the existing model,
                     preserving what explain proved; prints {added, kept, disappeared}`;
 
-function die(msg) { console.error(msg); process.exit(1); }
+function main(args) {
+  const [root, what, file] = args;
+  if (!root || !what || !file) return die(USAGE);
 
-const [root, what, file] = process.argv.slice(2);
-if (!root || !what || !file) die(USAGE);
+  let data;
+  try { data = JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (err) { return die(`${file}: ${err.message}`); }
 
-let data;
-try { data = JSON.parse(fs.readFileSync(file, 'utf8')); }
-catch (err) { die(`${file}: ${err.message}`); }
-
-try {
-  switch (what) {
-    case 'recipe': M.saveRecipe(root, data); break;
-    case 'config': M.saveConfig(root, data); break;
-    case 'model': M.saveModel(root, data); break;
-    case 'flow': M.saveFlow(root, data); break;
-    case 'merge-inventory': {
-      if (!Array.isArray(data)) die(`${file}: merge-inventory expects an array of entry-point records`);
-      const r = M.mergeModel(M.loadModel(root), data);
-      M.saveModel(root, r.model);
-      console.log(JSON.stringify({ added: r.added, kept: r.kept, disappeared: r.disappeared }, null, 2));
-      break;
+  try {
+    switch (what) {
+      case 'recipe': M.saveRecipe(root, data); break;
+      case 'config': M.saveConfig(root, data); break;
+      case 'model': M.saveModel(root, data); break;
+      case 'flow': M.saveFlow(root, data); break;
+      case 'merge-inventory': {
+        if (!Array.isArray(data)) return die(`${file}: merge-inventory expects an array of entry-point records`);
+        const r = M.mergeModel(M.loadModel(root), data);
+        M.saveModel(root, r.model);
+        console.log(JSON.stringify({ added: r.added, kept: r.kept, disappeared: r.disappeared }, null, 2));
+        break;
+      }
+      default: return die(`unknown target "${what}"\n\n${USAGE}`);
     }
-    default: die(`unknown target "${what}"\n\n${USAGE}`);
-  }
-} catch (err) { die(`${file}: ${err.message}`); }
+  } catch (err) { return die(`${file}: ${err.message}`); }
+  return 0;
+}
+function die(msg) { console.error(msg); return 1; }
+
+runMain(module, main);
+module.exports = { main };

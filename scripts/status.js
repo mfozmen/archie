@@ -1,6 +1,7 @@
 const M = require('./lib/model');
 const { changedFilesSince, markStale } = require('./staleness');
 const { sweep } = require('./sweep');
+const { runMain } = require('./lib/cli');
 const DRIFT_PRINT_LIMIT = 10;
 
 // Flow staleness catches code moving under a page that was traced. It cannot
@@ -53,14 +54,13 @@ function statusReport(root) {
   return { total, traced, stale: staleIds.length, pct: total ? Math.round(100 * traced / total) : 0,
     staleIds, unknowns, inventoryDrift: inventoryDrift(root, model) };
 }
-if (require.main === module) {
-  const args = process.argv.slice(2);
+function main(args) {
   const root = args.find(a => !a.startsWith('--')) || process.cwd();
   let r;
   // No model is the normal state before the first inventory, not a crash worth a
   // stack trace at someone trying the tool for the first time.
   try { r = statusReport(root); }
-  catch (err) { console.error(err.message); process.exit(1); }
+  catch (err) { console.error(err.message); return 1; }
   console.log(`${r.total} entry points · ${r.traced} documented (${r.pct}%) · ${r.stale} stale`);
   r.staleIds.forEach(id => console.log(`  stale: ${id}  → refresh with /archie:explain "${id}"`));
   console.log(`${r.unknowns.length} open questions${r.unknowns.length ? ' → --unknowns to list' : ''}`);
@@ -84,5 +84,7 @@ if (require.main === module) {
     console.log('  → re-run /archie:inventory (it merges; your traced flows survive)');
   }
   if (args.includes('--unknowns')) r.unknowns.forEach(u => console.log(`  [${u.source}] ${u.text}`));
+  return 0;
 }
-module.exports = { statusReport };
+runMain(module, main);
+module.exports = { statusReport, main };

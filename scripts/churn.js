@@ -1,5 +1,6 @@
 const { run } = require('./lib/exec');
 const M = require('./lib/model');
+const { runMain } = require('./lib/cli');
 
 function fileChurn(root, files, sinceMonths = 6) {
   const want = new Set(files);
@@ -26,15 +27,17 @@ function rankEntries(model, churnMap, n = 5) {
     return { id: en.id, label: en.label, commits, evidence: en.evidence[0] };
   }).sort((a, b) => b.commits - a.commits).slice(0, n);
 }
-if (require.main === module) {
-  const root = process.argv[2] || process.cwd();
+function main(args) {
+  const root = args[0] || process.cwd();
   const model = M.loadModel(root);
-  if (!model) { console.error('no model — run /archie:inventory'); process.exit(1); }
+  if (!model) { console.error('no model — run /archie:inventory'); return 1; }
   // Both halves of what rankEntries scores: evidence locations AND the literal
   // (non-glob) watch paths a traced entry carries, or watch files score 0.
   const files = [...new Set(model.entries.flatMap(e =>
     [...e.evidence.map(v => v.file), ...e.watch.filter(w => !w.includes('*'))]))];
   const top = rankEntries(model, fileChurn(root, files));
   top.forEach((t, i) => console.log(`${i + 1}. ${t.label}  · ${t.commits} commits · ${t.evidence.file}:${t.evidence.line}`));
+  return 0;
 }
-module.exports = { fileChurn, rankEntries };
+runMain(module, main);
+module.exports = { fileChurn, rankEntries, main };

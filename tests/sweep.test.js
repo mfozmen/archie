@@ -130,3 +130,13 @@ test('a non-ASCII path is swept, not quietly skipped', () => {
   if (hasBin('rg'))
     assert.deepStrictEqual(sweep(root, r, { forceGrep: false }).hits.map(h => h.file), ['routes/sipariş.php']);
 });
+
+test('a scope that excludes nothing is still a scope', () => {
+  const { root } = makeTempRepo();
+  write(root, 'routes/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  commitFixture(root);
+  const r = { stack: 'generic', probes: [{ kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' }] };
+  const res = sweep(root, r, { forceGrep: true, scope: { paths: ['routes'] } });
+  assert.strictEqual(res.scoped, true, 'every tracked file was in scope, but a scope was set');
+  assert.strictEqual(sweep(root, r, { forceGrep: true }).scoped, false);
+});

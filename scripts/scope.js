@@ -12,6 +12,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { tryRun, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
+const { runMain } = require('./lib/cli');
+const { byCodePoint } = require('./lib/order');
 
 const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'];
 
@@ -31,26 +33,37 @@ function readCodeowners(root) {
   return null;
 }
 
+// Split out so fromCodeowners stays one loop, and so the trimming is done with
+// indexOf/split rather than regexes a scanner has to reason about backtracking in.
+function parseOwnersLine(line, teams) {
+  const hash = line.indexOf('#');
+  const trimmed = (hash === -1 ? line : line.slice(0, hash)).trim();
+  if (!trimmed) return null;
+  const [pattern, ...owners] = trimmed.split(/\s+/);
+  if (!owners.length) return null;
+  // A catch-all owner says who to ask when nothing else matches. It is not
+  // evidence that this is anybody's area in particular.
+  if (pattern === '*' || pattern === '/*') return null;
+  if (teams?.length && !owners.some(o => teams.includes(o))) return null;
+  return { path: trimSlashes(pattern), owners };
+}
+
+const trimSlashes = (s) => {
+  let a = 0, b = s.length;
+  while (a < b && s[a] === '/') a++;
+  while (b > a && s[b - 1] === '/') b--;
+  return s.slice(a, b);
+};
+
 function fromCodeowners(root, teams) {
   const found = readCodeowners(root);
   if (!found) return [];
   const out = [];
   for (const line of found.text.split('\n')) {
-    const trimmed = line.replace(/#.*$/, '').trim();
-    if (!trimmed) continue;
-    const [pattern, ...owners] = trimmed.split(/\s+/);
-    if (!owners.length) continue;
-    // A catch-all owner says who to ask when nothing else matches. It is not
-    // evidence that this is anybody's area in particular.
-    if (pattern === '*' || pattern === '/*') continue;
-    if (teams?.length && !owners.some(o => teams.includes(o))) continue;
-    out.push({
-      path: pattern.replace(/^\/+/, '').replace(/\/+$/, ''),
-      source: 'codeowners',
-      detail: `${found.rel} assigns it to ${owners.join(' ')}`,
-    });
+    const entry = parseOwnersLine(line, teams);
+    if (entry) out.push({ ...entry, source: 'codeowners', detail: `${found.rel} assigns it to ${entry.owners.join(' ')}` });
   }
-  return out;
+  return out.map(({ owners, ...rest }) => rest);
 }
 
 // What you have actually touched beats what an ownership file says you own, in
@@ -80,7 +93,10 @@ function fromGitHistory(root, email, sinceMonths = 12) {
     perDir.set(dir, (perDir.get(dir) || 0) + 1);
   }
   return [...perDir.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    // Most-touched first; ties broken by name. byCodePoint, not localeCompare:
+    // two directories with equal commit counts must order the same way on every
+    // machine, whatever ICU data it happens to carry.
+    .sort((a, b) => b[1] - a[1] || byCodePoint(a[0], b[0]))
     .map(([dir, n]) => ({ path: dir, source: 'git-history', detail: `${n} of your ${total} commits touched it` }));
 }
 
@@ -91,7 +107,7 @@ function fromTree(root) {
     const top = f.split('/')[0];
     if (f.includes('/') && !top.startsWith('.')) tops.add(top);
   }
-  return [...tops].sort().map(p => ({ path: p, source: 'tree', detail: 'a top-level directory' }));
+  return [...tops].sort(byCodePoint).map(p => ({ path: p, source: 'tree', detail: 'a top-level directory' }));
 }
 
 // Ordered by how strong the claim is. The tree is a last resort: it says nothing
@@ -106,10 +122,11 @@ function deriveCandidates(root, { email, teams } = {}) {
   return fromTree(root);
 }
 
-if (require.main === module) {
-  const root = process.argv[2] || process.cwd();
-  const email = process.argv[3] || (tryRun('git', ['-C', root, 'config', 'user.email']) || '').trim();
-  const teams = process.argv.slice(4);
-  console.log(JSON.stringify(deriveCandidates(root, { email, teams }), null, 2));
+function main(args) {
+  const root = args[0] || process.cwd();
+  const email = args[1] || (tryRun('git', ['-C', root, 'config', 'user.email']) || '').trim();
+  console.log(JSON.stringify(deriveCandidates(root, { email, teams: args.slice(2) }), null, 2));
+  return 0;
 }
-module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree };
+runMain(module, main);
+module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree, main };
