@@ -33,8 +33,10 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 > They are not, and a responsibility spanning several repositories has no single repo to
 > keep its map in. `storeFor(repoPath, workspace)` is now the one place that decides where
 > a store goes; given a workspace it answers `<workspace>/.archie/repos/<name>`, which
-> leaves analyzed repositories as read-only inputs. Nothing is wired to it yet — what is
-> written below is still what a run produces today.
+> leaves analyzed repositories as read-only inputs. The scripts take `--workspace` and
+> `--store` and are tested against both; what has not adopted them is the skill layer, which
+> still passes a repository and nothing else. So the layout below is still what a run
+> produces today, and will be until the skills change.
 
 
 ```

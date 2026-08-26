@@ -270,7 +270,7 @@ function readMermaid(pluginRoot) {
 function main(args) {
   const { repo, store, base } = paths(args);
   const model = M.loadModel(store);
-  if (!model) { console.error('no model — run /archie:inventory'); return 1; }
+  if (!model) { console.error(`no ${path.join(store, 'model.json')} — run /archie:inventory`); return 1; }
   const { fingerprint } = require('./fingerprint');
   const flows = M.listFlows(store);
   const fp = fingerprint(repo);

@@ -1,3 +1,4 @@
+const path = require('node:path');
 const { run } = require('./lib/exec');
 const M = require('./lib/model');
 const { runMain, paths } = require('./lib/cli');
@@ -30,7 +31,7 @@ function rankEntries(model, churnMap, n = 5) {
 function main(args) {
   const { repo, store } = paths(args);
   const model = M.loadModel(store);
-  if (!model) { console.error('no model — run /archie:inventory'); return 1; }
+  if (!model) { console.error(`no ${path.join(store, 'model.json')} — run /archie:inventory`); return 1; }
   // Both halves of what rankEntries scores: evidence locations AND the literal
   // (non-glob) watch paths a traced entry carries, or watch files score 0.
   const files = [...new Set(model.entries.flatMap(e =>

@@ -10,8 +10,9 @@ const fs = require('node:fs');
 const M = require('./lib/model');
 const { runMain, paths } = require('./lib/cli');
 
-const USAGE = `usage: store.js <root> <what> <file.json> [--store <dir>]
-  --store <dir>     where to write; defaults to <root>/.archie
+const USAGE = `usage: store.js <root> <what> <file.json> [--workspace <dir>] [--store <dir>]
+  --workspace <dir> the workspace this repo belongs to; its store goes under it
+  --store <dir>     the store directory outright; defaults to <root>/.archie
   recipe            validate and write recipe.json into the store
   config            write config.json into the store
   model             validate and write model.json into the store (OVERWRITES — see merge-inventory)
