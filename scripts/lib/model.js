@@ -176,13 +176,22 @@ function readFlow(root, name) {
 // but it could hide a NEW behavior the page ought to mention, and nothing will
 // flag that. The honest direction to be wrong in, and stated so it is not
 // mistaken for completeness.
-function watchFromFlow(flow) {
+// Split out from watchFromFlow because this walk — six answer keys, each a list
+// of claims, each carrying its own evidence plus a list of tests — is where all
+// the nesting lives. Next to a name, the unknowns walk below is one readable
+// line instead of a fourth loop to hold in your head.
+function claimFiles(answers) {
   const files = new Set();
   for (const key of ANSWER_KEYS)
-    for (const c of flow.answers?.[key] || []) {
+    for (const c of answers?.[key] || []) {
       if (c.evidence?.file) files.add(c.evidence.file);
       for (const t of c.tests || []) if (t.file) files.add(t.file);
     }
+  return files;
+}
+
+function watchFromFlow(flow) {
+  const files = claimFiles(flow.answers);
   for (const u of flow.unknowns || []) if (u.look_at?.file) files.add(u.look_at.file);
   return [...files].sort(byCodePoint);
 }
