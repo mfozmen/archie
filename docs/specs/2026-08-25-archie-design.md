@@ -24,6 +24,7 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 | Analysis boundary | One repository at a time. Whether Archie *knows about* more than one is a separate question, and being answered — see #26 and §3. |
 | Knowledge store | Structural model (JSON) is the single source of truth; every human-facing format is rendered from it. |
 | Evidence bar | Static code (`file:line`) plus existing tests. Anything not provable goes to `unknowns[]`. No guessing, ever. |
+| Other people's names | Never collected, never emitted. Archie reads files full of colleagues — `CODEOWNERS`, git history — and takes from them only what answers the question it was asked. Teams are named because "which team am I on" needs them; individuals are counted instead, so the omission is visible rather than silent. **Locked.** |
 | Architecture | Composite skill set + persistent model (a one-shot analyzer and a workflow-fleet were considered and rejected). |
 
 ## 3. Store layout
