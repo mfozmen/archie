@@ -56,7 +56,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: |
-            --max-turns 60
+            --max-turns 120
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
           prompt: |
             You are reviewing this pull request as an ADVISORY reviewer for
@@ -113,10 +113,18 @@ jobs:
               customer-specific anywhere — files, examples, fixtures, or commit
               messages. All examples must be synthetic (web-shop domain:
               orders/shipments/notifications). See REVIEW.md §1. Critical.
-            - **Scope invariants.** Archie writes only under `.archie/` in the
-              analyzed repo; single-repo boundary (outbound calls are labelled
-              boxes, never followed); the structural model stays the single
-              source of truth — no view may carry content absent from the model.
+            - **Scope invariants.** The **trace** boundary is locked: a traced
+              flow never follows an outbound call into another system —
+              outbound calls are labelled boxes. The **analysis** boundary is
+              not: Archie is moving from one repository to a workspace holding
+              several (#26), so "it looked at more than one repo" is not a
+              finding. In a workspace the store lives under the workspace and
+              **the analyzed repositories are never written to** — a change that
+              writes into one is Critical. The structural model stays the single
+              source of truth: no view may carry content absent from it.
+            - **Other people's names.** Archie reads `CODEOWNERS` and git
+              history, which are full of colleagues. Teams may be named;
+              individuals are counted, never named or emitted. Critical.
             - **Prompt quality** for `skills/` and `agents/`: unambiguous, the
               stated JSON contract matches the schemas in `scripts/lib/model.js`,
               and hard rules are stated as rules (not suggestions).
@@ -129,3 +137,10 @@ jobs:
             Spend turns economically: fetch the diff once with `gh pr diff` and
             don't re-fetch; leave inline comments only for the most important
             issues.
+
+            **Post the summary before you verify anything.** Read the diff, form
+            a first view, `gh pr comment` it — then go deeper and add inline
+            findings. Runs have died at the turn limit having done the whole
+            review and published none of it, which is the one outcome worth
+            nothing to anybody. A rough summary that lands beats a thorough one
+            that does not.
