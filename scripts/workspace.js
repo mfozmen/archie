@@ -60,7 +60,11 @@ function gitIdentities(workspace, repos) {
 const TEAM = /^@[^/]+\/.+/;
 function ownersIn(repoPath) {
   const found = readCodeowners(repoPath);
-  if (!found) return { teams: [], individuals: 0 };
+  // The file it came from, because CODEOWNERS lives in one of three places and
+  // "assigned to that team" becomes a claim the moment the skill shows it. A
+  // claim in this project names where it was read; that rule does not start
+  // applying only once the text reaches a page.
+  if (!found) return { teams: [], individuals: 0, codeownersFile: null };
   const teams = new Set(), individuals = new Set();
   for (const line of found.text.split('\n')) {
     const parsed = ownersLine(line);
@@ -73,7 +77,7 @@ function ownersIn(repoPath) {
       (TEAM.test(tok) ? teams : individuals).add(tok);
     }
   }
-  return { teams: [...teams].sort(byCodePoint), individuals: individuals.size };
+  return { teams: [...teams].sort(byCodePoint), individuals: individuals.size, codeownersFile: found.rel };
 }
 
 // Commits by any of the person's identities, in a window. Counted, never used to
@@ -117,8 +121,8 @@ function gather(workspace) {
     identities,
     repos: repos.map(name => {
       const repoPath = path.join(workspace, name);
-      const { teams, individuals } = ownersIn(repoPath);
-      return { name, teams, individualOwners: individuals,
+      const { teams, individuals, codeownersFile } = ownersIn(repoPath);
+      return { name, teams, individualOwners: individuals, codeownersFile,
         commits: commitsBy(repoPath, identities), description: describe(repoPath) };
     }),
   };

@@ -81,7 +81,7 @@ test('commits are counted under every identity, not just the local one', () => {
 test('a repository with no CODEOWNERS names no teams', () => {
   const ws = makeWorkspace();
   const p = repoIn(ws, 'a');
-  assert.deepStrictEqual(W.ownersIn(p), { teams: [], individuals: 0 });
+  assert.deepStrictEqual(W.ownersIn(p), { teams: [], individuals: 0, codeownersFile: null });
 });
 
 // Individuals are counted and not named. They outnumbered teams roughly thirty
@@ -166,7 +166,7 @@ test('an email owner is neither a team nor an individual handle', () => {
   const ws = makeWorkspace();
   const p = repoIn(ws, 'a');
   put(p, 'CODEOWNERS', '* dev@example.com @org/platform\n');
-  assert.deepStrictEqual(W.ownersIn(p), { teams: ['@org/platform'], individuals: 0 });
+  assert.deepStrictEqual(W.ownersIn(p), { teams: ['@org/platform'], individuals: 0, codeownersFile: 'CODEOWNERS' });
 });
 
 test('a lowercase readme and an extensionless README are both read', () => {
@@ -233,4 +233,15 @@ test('a catch-all owner counts for a repository and not for a directory', () => 
   // At directory level it says only who to ask by default, which is not
   // evidence that any particular directory is theirs.
   assert.deepStrictEqual(require('../scripts/scope').fromCodeowners(p), []);
+});
+
+// "Assigned to that team" is a claim as soon as the skill shows it, and a claim
+// in this project names where it was read. CODEOWNERS lives in one of three
+// places, so which one is not something to leave the reader guessing.
+test('a team assignment carries the file it was read from', () => {
+  const ws = makeWorkspace();
+  const p = repoIn(ws, 'a');
+  put(p, '.github/CODEOWNERS', '* @org/payments\n');
+  assert.strictEqual(W.ownersIn(p).codeownersFile, '.github/CODEOWNERS');
+  assert.strictEqual(W.gather(ws).repos[0].codeownersFile, '.github/CODEOWNERS');
 });
