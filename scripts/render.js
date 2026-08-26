@@ -49,11 +49,16 @@ function flowPage(flow, scope) {
 // A scoped map is a map of one area. Left unsaid, a reader takes an inventory of
 // 12 endpoints as the system having 12 endpoints — the exact wrong belief for a
 // tool that exists to stop people being confidently wrong about a codebase.
-function scopeNote(scope) {
+function scopeNote(scope, markdown = true) {
   if (!scope?.paths?.length) return null;
-  const what = scope.label ? `**${scope.label}**` : 'a subset of this repository';
-  return `Scoped to ${what} — ${scope.paths.map(p => `\`${p}\``).join(', ')}. ` +
-    `This is **not a map of the whole system**: anything outside those paths was never swept.`;
+  // Built for each medium rather than de-markdowned with a regex: stripping `**`
+  // from the rendered string also ate it out of a glob like app/Orders/**, so the
+  // caveat misstated the very scope it exists to disclose.
+  const b = markdown ? '**' : '';
+  const c = markdown ? '`' : '';
+  const what = scope.label ? `${b}${scope.label}${b}` : 'a subset of this repository';
+  return `Scoped to ${what} — ${scope.paths.map(p => `${c}${p}${c}`).join(', ')}. ` +
+    `This is ${b}not a map of the whole system${b}: anything outside those paths was never swept.`;
 }
 
 function renderMarkdownPages(model, flows, fp, scope) {
@@ -100,7 +105,7 @@ function renderOpenapi(model, flows, scope) {
   }
   const note = scopeNote(scope);
   const out = ['openapi: 3.0.3', 'info:', "  title: 'Archie draft'", "  version: '0.1.0'"];
-  if (note) out.push(`  description: ${yamlStr(note.replace(/\*\*|`/g, ''))}`);
+  if (note) out.push(`  description: ${yamlStr(scopeNote(scope, false))}`);
   out.push('paths:');
   for (const [urlPath, ops] of paths) {
     out.push(`  ${urlPath}:`);
@@ -144,7 +149,7 @@ function renderHtml(model, flows, fp, mermaidJs, scope) {
   }
   const note = scopeNote(scope);
   const sections = [`<section id="overview"><h1>System map</h1>` +
-    (note ? `<p class="warn">${esc(note.replace(/\*\*|`/g, ''))}</p>` : '') +
+    (note ? `<p class="warn">${esc(scopeNote(scope, false))}</p>` : '') +
     `<p>${entries.length} entry points</p>` +
     `<pre class="mermaid">${esc(mermaidTopology(fp))}</pre></section>`];
   for (const f of [...flows].sort((a, b) => a.id.localeCompare(b.id))) {

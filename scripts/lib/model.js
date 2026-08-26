@@ -88,6 +88,10 @@ function validateConfig(c) {
     if (typeof c.output !== 'string' || !c.output) e.push('output must be a non-empty string');
     else if (path.isAbsolute(c.output) || path.normalize(c.output).split(path.sep)[0] === '..')
       e.push('output must be a relative path inside the repository');
+    // "." passes both checks above and then renders index.html straight over
+    // whatever the repository keeps at its root.
+    else if (['.', ''].includes(path.normalize(c.output).replace(/[\\/]+$/, '')))
+      e.push('output must be a subdirectory, not the repository root');
   }
   if (c?.scope !== undefined) {
     if (!c.scope || typeof c.scope !== 'object') e.push('scope must be an object');

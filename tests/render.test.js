@@ -111,3 +111,11 @@ test('the scope caveat reaches the pages people actually share', () => {
   assert.ok(!/not a map of the whole system/i.test(
     R.renderMarkdownPages(model, [flow], fp).get('http-post-api-orders-id-ship.md')));
 });
+
+test('the plain-text caveat keeps the globs it is quoting', () => {
+  const scope = { label: 'Orders', paths: ['app/Orders/**', 'routes/api.php'] };
+  // De-markdowning by stripping ** turned app/Orders/** into app/Orders/ — a
+  // caveat that misstates the very scope it exists to disclose.
+  for (const out of [R.renderOpenapi(model, [flow], scope), R.renderHtml(model, [flow], fp, '', scope)])
+    assert.match(out, /app\/Orders\/\*\*/);
+});

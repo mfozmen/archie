@@ -238,3 +238,13 @@ test('outputDir defaults to the wiki directory under .archie', () => {
   M.saveConfig(root, { output: 'docs/system-map' });
   assert.strictEqual(M.outputDir(root), path.join(root, 'docs', 'system-map'));
 });
+
+test('output must not resolve to the repository root', () => {
+  const { root } = makeTempRepo();
+  // "." passes an isAbsolute/".." check and then renders index.html over
+  // whatever the repository already has at its root.
+  for (const bad of ['.', './', '', '././.'])
+    assert.throws(() => M.saveConfig(root, { output: bad }), /output/, JSON.stringify(bad));
+  M.saveConfig(root, { output: './docs/map' });
+  assert.strictEqual(M.outputDir(root), path.join(root, 'docs', 'map'));
+});
