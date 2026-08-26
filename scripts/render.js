@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { slug } = require('./lib/slug');
 const M = require('./lib/model');
+const { runMain } = require('./lib/cli');
 
 const QUESTIONS = [
   ['entry', 'Where does it enter?'], ['guards', 'Who may call it?'], ['decisions', 'What does it decide?'],
@@ -202,10 +203,18 @@ document.getElementById('filter').addEventListener('input', function (e) {
 `;
 }
 
-if (require.main === module) {
-  const root = process.argv[2] || process.cwd();
+// Say so rather than shipping a wiki whose diagrams silently never render.
+function readMermaid(pluginRoot) {
+  const vendored = path.join(pluginRoot, 'vendor', 'mermaid.min.js');
+  if (fs.existsSync(vendored)) return fs.readFileSync(vendored, 'utf8');
+  console.error('vendor/mermaid.min.js missing — diagrams will not render in index.html');
+  return '';
+}
+
+function main(args) {
+  const root = args[0] || process.cwd();
   const model = M.loadModel(root);
-  if (!model) { console.error('no model — run /archie:inventory'); process.exit(1); }
+  if (!model) { console.error('no model — run /archie:inventory'); return 1; }
   const { fingerprint } = require('./fingerprint');
   const flows = M.listFlows(root);
   const fp = fingerprint(root);
@@ -216,15 +225,13 @@ if (require.main === module) {
   fs.mkdirSync(out, { recursive: true });
   for (const [name, content] of pages) fs.writeFileSync(path.join(out, name), content);
   console.log(`${pages.size} markdown pages → ${path.relative(root, out)}`);
-  if (process.argv.includes('--md')) return;
+  if (args.includes('--md')) return 0;
 
-  // Say so rather than shipping a wiki whose diagrams silently never render.
-  const vendored = path.join(__dirname, '..', 'vendor', 'mermaid.min.js');
-  let mermaidJs = '';
-  if (fs.existsSync(vendored)) mermaidJs = fs.readFileSync(vendored, 'utf8');
-  else console.error('vendor/mermaid.min.js missing — diagrams will not render in index.html');
+  const mermaidJs = readMermaid(path.join(__dirname, '..'));
   fs.writeFileSync(path.join(wiki, 'index.html'), renderHtml(model, flows, fp, mermaidJs, scope));
   fs.writeFileSync(path.join(wiki, 'openapi.yaml'), renderOpenapi(model, flows, scope));
   console.log(`wiki → ${path.relative(root, path.join(wiki, 'index.html'))}, openapi.yaml`);
+  return 0;
 }
-module.exports = { mermaidSequence, mermaidTopology, renderMarkdownPages, renderOpenapi, renderHtml };
+runMain(module, main);
+module.exports = { mermaidSequence, mermaidTopology, renderMarkdownPages, renderOpenapi, renderHtml, readMermaid, main };

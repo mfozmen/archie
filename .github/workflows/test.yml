@@ -33,3 +33,19 @@ jobs:
           fi
       - name: Leak scanner self-check
         run: bash scripts/leak-scan.test.sh
+
+  # Its own job, not a matrix entry: the coverage threshold flags need Node 22+,
+  # and branch protection is pinned to the names test (18), test (22), test (24).
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # sweep's ripgrep branch is the default path wherever rg is installed.
+      # Without it here, that code is both unrun and uncounted.
+      - name: Install ripgrep
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+      - name: Coverage
+        run: node --test --experimental-test-coverage

@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { runMain } = require('./lib/cli');
 const EXTERNAL_IMAGES = /redis|postgres|mysql|mariadb|mongo|rabbitmq|kafka|elasticsearch|memcached|minio|localstack/;
 const FRAMEWORK_DEPS = ['express', 'fastify', 'koa', 'next'];
 
@@ -64,5 +65,9 @@ function fingerprint(root) {
   }
   return out;
 }
-if (require.main === module) console.log(JSON.stringify(fingerprint(process.argv[2] || process.cwd()), null, 2));
-module.exports = { fingerprint };
+function main(args) {
+  console.log(JSON.stringify(fingerprint(args[0] || process.cwd()), null, 2));
+  return 0;
+}
+runMain(module, main);
+module.exports = { fingerprint, main };

@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { tryRun, gitLines } = require('./lib/exec');
 const { matchesWatch } = require('./staleness');
+const { runMain } = require('./lib/cli');
 
 const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'];
 
@@ -106,10 +107,11 @@ function deriveCandidates(root, { email, teams } = {}) {
   return fromTree(root);
 }
 
-if (require.main === module) {
-  const root = process.argv[2] || process.cwd();
-  const email = process.argv[3] || (tryRun('git', ['-C', root, 'config', 'user.email']) || '').trim();
-  const teams = process.argv.slice(4);
-  console.log(JSON.stringify(deriveCandidates(root, { email, teams }), null, 2));
+function main(args) {
+  const root = args[0] || process.cwd();
+  const email = args[1] || (tryRun('git', ['-C', root, 'config', 'user.email']) || '').trim();
+  console.log(JSON.stringify(deriveCandidates(root, { email, teams: args.slice(2) }), null, 2));
+  return 0;
 }
-module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree };
+runMain(module, main);
+module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree, main };
