@@ -77,6 +77,14 @@ function fromGitHistory(root, email, sinceMonths = 12) {
   const log = tryRun('git', ['-C', root, '-c', 'core.quotePath=false', 'log',
     `--since=${sinceMonths} months ago`, `--author=${email}`, '--format=%H', '--name-only']);
   if (!log) return [];
+  return countByDirectory(log);
+}
+
+// The parse is its own function so the malformed-log guard below is reachable
+// from a test: `git log --format=%H --name-only` always emits the SHA before any
+// path, so a real log never arrives with sha unset — but a caller can hand this
+// one that does, which is the whole reason the guard exists.
+function countByDirectory(log) {
   const perDir = new Map();
   let sha = null, total = 0;
   const seenThisCommit = new Set();
@@ -86,6 +94,8 @@ function fromGitHistory(root, email, sinceMonths = 12) {
     // Exactly 40: --format=%H always emits a full SHA, and a looser pattern would
     // read a short lowercase-hex filename at the repository root as a commit.
     if (/^[0-9a-f]{40}$/.test(l)) { sha = l; total++; seenThisCommit.clear(); continue; }
+    // A path before any SHA is malformed output. Dropping the guard would
+    // attribute stray lines to whatever directory was seen last.
     if (!sha) continue;
     const dir = path.posix.dirname(l);
     if (dir === '.' || seenThisCommit.has(dir)) continue;
@@ -129,4 +139,4 @@ function main(args) {
   return 0;
 }
 runMain(module, main);
-module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree, main };
+module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree, countByDirectory, main };

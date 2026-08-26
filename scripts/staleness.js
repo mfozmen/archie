@@ -12,7 +12,7 @@ function changedFilesSince(root, sha) {
 function globToRegex(glob) {
   const re = glob.split('**/').map(part =>
     part.split('**').map(p =>
-      p.split('*').map(s => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')
+      p.split('*').map(s => s.replace(/[.+?^${}()|[\]\\]/g, String.raw`\$&`)).join('[^/]*')
     ).join('.*')
   ).join('(?:.*/)?');
   return new RegExp('^' + re + '$');

@@ -119,3 +119,63 @@ test('the status report says when its drift check was scoped', () => {
   M.saveConfig(root, {});
   assert.ok(!/scoped to/i.test(run()), 'an unscoped run states no scope');
 });
+
+// The four cases below are about what the terminal report SAYS, so they run the
+// script rather than statusReport() — the wording is the contract.
+const runStatus = (root, ...args) => require('node:child_process').execFileSync(process.execPath,
+  [require('node:path').join(__dirname, '..', 'scripts', 'status.js'), ...args], { cwd: root, encoding: 'utf8' });
+
+test('two hits in one file are one drift entry, not two', () => {
+  const { root } = makeTempRepo();
+  write(root, 'routes/admin.php', "<?php\nRoute::get('/a', 'A@i');\nRoute::post('/b', 'A@s');\n");
+  commitAll(root, 'routes');
+  M.saveRecipe(root, { stack: 'generic', probes: [
+    { kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' } ] });
+  M.saveModel(root, { version: 1, unknowns: [], entries: [] });
+  // Drift is a per-FILE claim: "this file produces hits nothing cites". Listing
+  // it once per matching line would turn one missing page into a wall of noise.
+  assert.deepStrictEqual(statusReport(root).inventoryDrift.unrepresented,
+    [{ kind: 'http', file: 'routes/admin.php' }]);
+});
+
+test('a sweep that cannot run is reported as unchecked, never as zero drift', () => {
+  const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+  const notARepo = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-notarepo-'));
+  try {
+    M.saveRecipe(notARepo, { stack: 'generic', probes: [
+      { kind: 'http', glob: '**/*.php', pattern: 'Route::(get|post)' } ] });
+    M.saveModel(notARepo, { version: 1, unknowns: [], entries: [] });
+    // `git ls-files` fails outside a repository. "I could not check" and "I
+    // checked and found nothing" are different claims and must read differently.
+    const d = statusReport(notARepo).inventoryDrift;
+    assert.match(d.error, /git ls-files failed/);
+    assert.deepStrictEqual(d.unrepresented, []);
+    assert.match(runStatus(notARepo), /inventory drift not checked: .*git ls-files failed/);
+  } finally {
+    fs.rmSync(notARepo, { recursive: true, force: true });
+  }
+});
+
+test('an unlabelled scope is still announced, with a stand-in name', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/Orders/api.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  commitAll(root, 'routes');
+  M.saveRecipe(root, { stack: 'generic', probes: [
+    { kind: 'http', glob: 'app/**/*.php', pattern: 'Route::(get|post)' } ] });
+  M.saveModel(root, { version: 1, unknowns: [], entries: [] });
+  M.saveConfig(root, { scope: { paths: ['app/Orders'] } });          // no label
+  const out = runStatus(root);
+  assert.match(out, /scoped to a subset of this repository — app\/Orders/);
+  assert.match(out, /everything outside was never swept/);
+});
+
+test('status.js run with only flags reports on the directory it was run in', () => {
+  const { root } = makeTempRepo();
+  write(root, 'a.php', 'x'); commitAll(root, 'a');
+  M.saveModel(root, { version: 1, unknowns: [{ text: 'who calls this?', why: 'no caller found' }], entries: [] });
+  // `--unknowns` is not a path. Treating it as one would look for a model in a
+  // directory called "--unknowns" and report "no model" to someone who has one.
+  const out = runStatus(root, '--unknowns');
+  assert.match(out, /0 entry points/);
+  assert.match(out, /\[inventory\] who calls this\?/);
+});

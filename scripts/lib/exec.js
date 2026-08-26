@@ -15,8 +15,13 @@ function tryRun(cmd, args, opts = {}) {
     throw new Error(`${cmd} failed to run (${err.code || err.message})`);
   }
 }
+// Taken as a defaulted parameter rather than read inline: both answers are real
+// behavior, and one test run happens on one platform. A test can ask this
+// directly instead of the alternative — reassigning process.platform, which
+// proves nothing about what a Windows machine actually does.
+function whichCommand(platform = process.platform) { return platform === 'win32' ? 'where' : 'which'; }
 function hasBin(name) {
-  try { run(process.platform === 'win32' ? 'where' : 'which', [name]); return true; }
+  try { run(whichCommand(), [name]); return true; }
   catch { return false; }
 }
 // git quotes any path outside ASCII by default — "routes/sipari\305\237.php" —
@@ -27,4 +32,4 @@ function gitLines(root, args) {
   const out = tryRun('git', ['-C', root, ...args, '-z']);
   return out === null ? null : out.split('\0').filter(Boolean);
 }
-module.exports = { run, tryRun, hasBin, gitLines, MAX_BUFFER };
+module.exports = { run, tryRun, hasBin, whichCommand, gitLines, MAX_BUFFER };

@@ -72,8 +72,10 @@ function renderMarkdownPages(model, flows, fp, scope) {
   const idx = ['# System map', ''];
   if (note) idx.push('> ' + note, '');
   idx.push(`${model.entries.length} entry points`, '', '| entry point | kind | coverage |', '|---|---|---|');
-  for (const en of [...model.entries].sort(byId))
-    idx.push(`| ${flowIds.has(en.id) ? `[${en.label}](${slug(en.id)}.md)` : en.label} | ${en.kind} | ${en.coverage} |`);
+  for (const en of [...model.entries].sort(byId)) {
+    const cell = flowIds.has(en.id) ? `[${en.label}](${slug(en.id)}.md)` : en.label;
+    idx.push(`| ${cell} | ${en.kind} | ${en.coverage} |`);
+  }
   const undoc = model.entries.filter(e => e.coverage === 'none');
   if (undoc.length) { idx.push('', '## Not yet documented', ''); undoc.forEach(e => idx.push(`- ${e.label}`)); }
   idx.push('', '```mermaid', mermaidTopology(fp), '```', '');
@@ -92,8 +94,15 @@ function renderMarkdownPages(model, flows, fp, scope) {
 // --- OpenAPI draft -----------------------------------------------------------
 // String-assembled on purpose: a YAML library would be the first npm dependency,
 // and this emits a fixed, shallow shape. It is a DRAFT — everything it cannot
-// prove from static evidence is left as a visible TODO rather than invented.
-const yamlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
+// prove from static evidence is left as a visible marker rather than invented.
+const yamlStr = (s) => `'${String(s).replaceAll("'", "''")}'`;
+
+// Output text, not a note to ourselves: this line is written into the generated
+// OpenAPI draft because a request body genuinely is not derivable from static
+// evidence, and inventing one would be a lie. It is output text, not our
+// backlog; sonar-project.properties says so, which is a better place for that
+// than spelling the word in pieces to dodge a scanner.
+const BODY_NOT_DERIVABLE = '      # TODO: body schema not derivable from static evidence';
 
 function httpPathsByUrl(model, flows) {
   const flowById = new Map(flows.map(f => [f.id, f]));
@@ -141,7 +150,7 @@ function operationLines({ method, en, flow }, params) {
     `      description: ${yamlStr(flow?.summary || 'Not yet documented')}`,
     `      x-archie-evidence: ${yamlStr(at.file + ':' + at.line)}`,
     ...paramLines(params),
-    '      # TODO: body schema not derivable from static evidence',
+    BODY_NOT_DERIVABLE,
     '      responses:',
     ...responseLines(flow),
   ];
@@ -153,14 +162,14 @@ function renderOpenapi(model, flows, scope) {
   out.push('paths:');
   for (const [urlPath, ops] of httpPathsByUrl(model, flows)) {
     out.push(`  ${urlPath}:`);
-    const params = [...urlPath.matchAll(/\{([^}]+)\}/g)].map(x => x[1]);
+    const params = [...urlPath.matchAll(/\{([^{}]+)\}/g)].map(x => x[1]);
     for (const op of ops) out.push(...operationLines(op, params));
   }
   return out.join('\n') + '\n';
 }
 
 // --- Single-file HTML wiki ---------------------------------------------------
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 function navList(entries, flowById) {
   const nav = [];
@@ -201,8 +210,8 @@ function flowSection(f, note) {
     if (!claims.length) body.push(key === 'guards' ? '<p class="warn">no guard found ⚠</p>' : '<p class="none">nothing recorded</p>');
     else body.push(claimItems(claims));
   }
-  body.push('<h3>Unknowns</h3>', unknownItems(f.unknowns));
-  body.push(`<pre class="mermaid">${esc(mermaidSequence(f))}</pre></section>`);
+  body.push('<h3>Unknowns</h3>', unknownItems(f.unknowns),
+    `<pre class="mermaid">${esc(mermaidSequence(f))}</pre></section>`);
   return body.join('');
 }
 
