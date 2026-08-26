@@ -27,7 +27,7 @@ Follow the preamble in the `inventory` skill (repo root, config, language rules)
 Re-derive candidates rather than asking the user to type paths from memory:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo"
 ```
 
 Then say plainly what the change means. **Narrowing does not delete anything** —
@@ -49,7 +49,7 @@ Read the current config, apply the user's request conversationally, show what wi
 change, then write it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
 ```
 
 ## Changing the language is a translation pass, not a re-trace
@@ -68,13 +68,13 @@ language would spend the whole budget and risk losing evidence, so instead:
 4. Save each flow through `store.js`, which re-validates the shape:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow "$root"/.archie/tmp/flow.json
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" flow "$tmp"/flow.json "${WS[@]}"
    ```
 
 Then re-render:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$repo" "${WS[@]}"
 ```
 
 ## What config does not do

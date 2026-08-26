@@ -78,7 +78,7 @@ Write the flow to a file and store it — via a file, never as a command-line
 argument, since a claim like "it's rejected" would break a shell-quoted one:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow "$root"/.archie/tmp/flow.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" flow "$tmp"/flow.json "${WS[@]}"
 ```
 
 Then, and only then, update this entry in the model:
@@ -89,7 +89,7 @@ Then, and only then, update this entry in the model:
   forgotten or half-filled:
 
   ```bash
-  node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').watchFromFlow(require('"$root"/.archie/tmp/flow.json')).join('\n')"
+  node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').watchFromFlow(require('"$tmp"/flow.json')).join('\n')"
   ```
 
   It returns every file the page cites — from a claim, from a test, from a
@@ -105,7 +105,7 @@ Then, and only then, update this entry in the model:
 With all three set, write the model out and store it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" model "$root"/.archie/tmp/model.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" model "$tmp"/model.json "${WS[@]}"
 ```
 
 Use `model`, not `merge-inventory`: you are editing one entry of the model you
@@ -114,7 +114,7 @@ just read, not folding in a fresh discovery pass.
 ## 5. Show it
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$root" --md
+node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$repo" --md "${WS[@]}"
 ```
 
 then print `.archie/wiki/md/<slug>.md`.

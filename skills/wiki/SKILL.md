@@ -19,7 +19,7 @@ at render time.
 ## Run it
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$repo" "${WS[@]}"
 ```
 
 That writes, under the configured `output` directory (`.archie/wiki/` unless

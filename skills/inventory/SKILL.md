@@ -7,68 +7,131 @@ description: Inventory every entry point in this repository — what is in this 
 
 ## Preamble (every Archie skill does this first)
 
-1. `root="$(git rev-parse --show-toplevel)"`. Not a git repository → say so and stop.
-2. If `$root/.archie/config.json` is missing, run the **first-run setup** below.
-   It is three questions, asked once, and it decides what the map will contain —
-   so ask them rather than picking for the user.
-3. Narrative text is written in the configured language. Identifiers — file paths,
-   route labels, class names, entry-point ids — are **never** translated.
-
-## First-run setup — three questions, asked once
-
-**1. Language.** Which language should the narrative be written in? Guess a
-default from the repo's README and offer it. Identifiers are never translated.
-
-**2. Scope — what are you responsible for?** On anything larger than a small
-service, inventorying everything buries the part the user actually owns. Propose
-candidates rather than guessing:
+**1. Where are you standing?** Two cases, and the first is just the second with
+one repository in it — do not treat them as different features.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$root"
+root="$(git rev-parse --show-toplevel 2>/dev/null)"
 ```
 
-Each candidate carries the evidence for it: a `CODEOWNERS` assignment, how many
-of the user's own commits touched the directory, or — only when neither exists —
-that it is simply a top-level directory. Show them with that evidence, ask which
-apply, and let the user add, remove or edit paths freely. **Offer "the whole
-repository" as a real option** and take it when chosen; scope is a convenience,
-not something to talk anyone into.
+- **It printed a path.** You are inside one repository. The store is
+  `$repo/.archie`, as it has always been.
+  ```bash
+  repo="$root"; WS=()
+  ```
+- **It failed.** You are in a directory that holds repositories — the normal way
+  to run Archie, because nobody's responsibility is one repo. Each repository's
+  store lives under the workspace, and **the repositories themselves are never
+  written to**. If the directory holds no repositories either, say so and stop;
+  that is neither case.
+  ```bash
+  ws="$PWD"; WS=(--workspace "$ws")
+  ```
 
-If the user names a team (`@acme/orders-team`), pass it so `CODEOWNERS` can be
-filtered to their team's areas:
+`"${WS[@]}"` goes on **every** script call from here on. It is empty in the
+single case, so one line works for both and neither is a special case.
+
+**2. Config.** `$ws/.archie/config.json` (or `$repo/.archie/config.json` in the
+single case). Missing → run the **first-run setup** below. It decides what the
+map is allowed to contain, so ask; do not pick for the user.
+
+**3. Language.** Narrative text is written in the configured language.
+Identifiers — file paths, route labels, class names, entry-point ids — are
+**never** translated.
+
+## First-run setup — asked once
+
+### In a workspace: which repositories are yours?
+
+Gather the evidence first. This script reads and decides nothing:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$root" "$(git -C "$root" config user.email)" @acme/orders-team
+node "${CLAUDE_PLUGIN_ROOT}/scripts/workspace.js" "$ws" "$handle"
 ```
 
-**3. Where should the wiki be written?** Default is `.archie/wiki/`, which keeps
-generated files out of the way. Offer something browsable in the repo —
-`docs/system-map/` is a good suggestion — because a map nobody opens is a map
-nobody reads. Whatever is chosen must be inside the repository; `store.js`
-refuses anything else.
+**Ask for the handle before you run it**, once: *"What is your CODEOWNERS
+handle, so I can see where you are named directly?"* It cannot be derived —
+`CODEOWNERS` names `@handles` and git knows emails, and guessing a mapping
+between them would be inventing evidence. Without it, `youAreNamed` comes back
+`null`, meaning *not looked at* rather than *no*.
+
+Then ask the real question in the user's own words: **"Which parts of this are
+you responsible for?"** A team, a product, an area — whatever they say. Match
+that sentence against the gathered evidence yourself; that judgement is why a
+model is doing this and not a regex.
+
+Rank what you propose by how strong the evidence is:
+
+1. `youAreNamed` — they are in that repository's `CODEOWNERS` by name.
+2. `teams` matching what they described.
+3. `commits` — they have worked in it.
+
+Show each proposal **with the evidence for it**, naming the `codeownersFile` it
+was read from. A proposal with no evidence to show is not a proposal, it is a
+guess.
+
+Then **ask what is missing.** This is not a politeness step and must not be
+trimmed as one: both signals undercount by construction. You can be responsible
+for a repository you have never committed to, and on a real workspace only a
+third named a team at all. The set cannot be completed without the user.
+
+Store the answer as `repos` (each with the `why` that put it there) and
+`declined` (offered, and they said no). `declined` exists **only** so the same
+question is not asked twice — it is not permanent, hides nothing, and records
+that the person said "not mine", never a claim about whose it is.
+
+### Every run, in a workspace: anything new?
+
+Re-run `workspace.js`. A repository in neither list is one nobody has been asked
+about — a fresh clone, or a checkout that was not there at setup. Ask about that
+one, once, with its evidence, and write the answer to whichever list it belongs
+in. Do not re-ask about anything already in either list.
+
+### Both cases
+
+**Scope inside a repository.** Within a repo you own, `scope.js` still narrows
+which directories the sweep reads. Offer it; take "the whole repository" when
+chosen. Scope is a convenience, not something to talk anyone into.
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo"
+```
+
+**Where the wiki is written.** Default is inside the store, which keeps
+generated files out of everyone's way. Offer something browsable —
+`system-map/` under the workspace, or `docs/system-map/` in the single-repo
+case. A relative `output` resolves against the workspace when there is one, so
+in workspace mode it never lands inside a repository Archie only read.
 
 Then write and store the answers:
 
 ```json
-{ "language": "en",
-  "output": "docs/system-map",
-  "scope": { "label": "Orders", "paths": ["app/Orders/**", "routes/api.php"] } }
+{ "workspace": "/abs/path/to/checkouts",
+  "handle": "@you",
+  "repos": [{ "name": "orders-api", "why": "@org/payments in .github/CODEOWNERS; 84 of your commits" }],
+  "declined": ["something-else"],
+  "language": "en",
+  "output": "system-map" }
 ```
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
 ```
 
 Omit `scope` entirely for a whole-repository map — an empty `paths` and no
 `scope` mean the same thing, and neither adds a caveat to the rendered pages.
 Every later run reads this file; `/archie:config` changes any of it.
 
-Scratch JSON goes under `$root/.archie/tmp/` (`mkdir -p` it first), never a fixed
-path in `/tmp`: two
-Archie sessions on two different repositories would otherwise write the same file
-at the same time. (Two sessions on the *same* repository are not supported — they
-would race on `model.json` itself, which no temp path can fix.) `.archie/tmp/` is
-generated, like `.archie/wiki/`, and belongs in `.gitignore`.
+Scratch JSON goes under `tmp/` inside that repository's store (`mkdir -p` it
+first), never a fixed path in `/tmp`: two Archie sessions on two different
+repositories would otherwise write the same file at the same time. (Two sessions
+on the *same* repository are not supported — they would race on `model.json`
+itself, which no temp path can fix.)
+
+In the single-repository case the store is `$repo/.archie`, so `tmp/` and
+`wiki/` are generated files inside the repo and belong in its `.gitignore`. In a
+workspace they are under the workspace instead, and there is nothing to ignore —
+Archie writes nothing into the repositories it reads.
 
 ## The rule that outranks everything else
 
@@ -79,7 +142,7 @@ inventory is the product; a long plausible one is the failure mode.
 ## Step 0 — fingerprint (deterministic, no tokens)
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/fingerprint.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/fingerprint.js" "$repo"
 ```
 
 Manifests give the stack; deployment files give the process list and the external
@@ -100,7 +163,7 @@ argument** — a route label or a pattern containing a quote would break the she
 before node ever saw it, and a real model runs to hundreds of entries.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe "$root"/.archie/tmp/recipe.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" recipe "$tmp"/recipe.json "${WS[@]}"
 ```
 
 Show the recipe to the user. It is hand-editable, and `/archie:recipe "<hint>"`
@@ -109,7 +172,7 @@ is the escape hatch for a home-grown router the model has never seen.
 ## Step 2 — sweep (ripgrep, no tokens)
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep.js" "$repo" "${WS[@]}"
 ```
 
 The sweep reads the configured scope itself and narrows the file list before any
@@ -148,7 +211,7 @@ erase every flow `/archie:explain` has proved. Merge:
 Write the discovered set to a file, then merge:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" merge-inventory "$root"/.archie/tmp/discovered.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" merge-inventory "$tmp"/discovered.json "${WS[@]}"
 ```
 
 It prints `{added, kept, disappeared}`.
@@ -188,7 +251,7 @@ registration at <file:line>, count underivable"`.
 ## Report
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/churn.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/churn.js" "$repo" "${WS[@]}"
 ```
 
 Print: the count per kind, the top 5 entry points by git churn, and one line

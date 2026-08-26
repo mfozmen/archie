@@ -73,3 +73,48 @@ test('scratch files are scoped to the repository', () => {
     assert.ok(!/\/tmp\/archie/.test(skill), s + ' must not use a fixed /tmp path');
   }
 });
+
+// A store-touching script call that forgets "${WS[@]}" writes into the analyzed
+// repository instead of the workspace — silently, and only in workspace mode,
+// which is the one case nobody tests by hand. It is the exact failure moving the
+// store was meant to prevent, so it is checked mechanically rather than by
+// reading the prose carefully.
+const STORE_SCRIPTS = ['store', 'sweep', 'render', 'status', 'churn', 'staleness'];
+test('every store-touching call in every skill carries the workspace argument', () => {
+  for (const s of SURFACES) {
+    const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    for (const line of src.split('\n')) {
+      const m = line.match(/scripts\/(\w+)\.js"([^\n]*)/);
+      if (!m || !STORE_SCRIPTS.includes(m[1])) continue;
+      assert.ok(m[2].includes('${WS[@]}'), `${s}: ${m[1]}.js call is missing "\${WS[@]}" — ${line.trim()}`);
+      assert.ok(!m[2].includes('"$root"'), `${s}: ${m[1]}.js still takes $root — ${line.trim()}`);
+    }
+  }
+});
+
+// The preamble is the only place that decides where Archie writes, so the claim
+// the whole workspace design rests on has to survive an edit to it.
+test('the preamble promises that analyzed repositories are not written to', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  assert.match(pre, /never\s+written\s+to/i);
+  assert.match(pre, /WS=\(--workspace/, 'the workspace argument must be defined in the preamble');
+  assert.match(pre, /WS=\(\)/, 'the single-repository case must define it empty, not omit it');
+});
+
+// Both discovery signals undercount by construction — you can be responsible for
+// a repository you never committed to, and most repos name no team at all. The
+// step that repairs that reads like a confirmation prompt, so it says in the
+// prompt itself that it is not one.
+test('asking what is missing is marked as load-bearing, not a courtesy', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  assert.match(pre, /not a politeness step|must not be\s*\n?trimmed/i);
+  assert.match(pre, /undercount/i, 'the reason must be stated, or the rule is arbitrary');
+});
+
+// A stored "no" is there to stop a repeated question and nothing else. Written
+// loosely it reads like a verdict on ownership, which Archie has no evidence for.
+test('declined is described as a memory of the asking, not a claim about ownership', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  assert.match(pre, /not asked twice|same\s+question is not asked/i);
+  assert.match(pre, /not permanent|never a claim about whose/i);
+});
