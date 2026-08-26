@@ -10,7 +10,8 @@ const fs = require('node:fs');
 const M = require('./lib/model');
 const { runMain, paths } = require('./lib/cli');
 
-const USAGE = `usage: store.js <root> <what> <file.json>
+const USAGE = `usage: store.js <root> <what> <file.json> [--store <dir>]
+  --store <dir>     where to write; defaults to <root>/.archie
   recipe            validate and write .archie/recipe.json
   config            write .archie/config.json
   model             validate and write .archie/model.json (OVERWRITES — see merge-inventory)

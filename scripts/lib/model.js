@@ -18,8 +18,14 @@ const ANSWER_KEYS = ['entry', 'guards', 'decisions', 'data', 'boundary', 'return
 // analyzed repositories untouched: they become read-only inputs, and a repo
 // that had to be cloned in order to be read needs nothing written back into it.
 const dir = (store, ...p) => path.join(store, ...p);
-const storeFor = (repoPath, workspace) => workspace
-  ? path.join(workspace, ARCHIE_DIR, 'repos', path.basename(repoPath))
+// `name` is what this repository is called inside the workspace. It defaults to
+// the directory name, which is right for repos sitting side by side — but two
+// repos called `api` under different parents would land on one store and
+// overwrite each other with no error anywhere. The responsibility set assigns
+// the name when a repo joins it, resolving any clash once and visibly, and
+// passes it here; the default is for a caller that has no set yet.
+const storeFor = (repoPath, workspace, name = path.basename(repoPath)) => workspace
+  ? path.join(workspace, ARCHIE_DIR, 'repos', name)
   : path.join(repoPath, ARCHIE_DIR);
 function readJson(p) { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; }
 function writeJson(p, obj) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, JSON.stringify(obj, null, 2) + '\n'); }

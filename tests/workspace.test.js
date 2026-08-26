@@ -19,6 +19,18 @@ test('with a workspace every repo gets its own store under the workspace', () =>
   assert.notStrictEqual(M.storeFor('/src/a', '/src'), M.storeFor('/src/b', '/src'));
 });
 
+// The default name is the directory name, and two repos called `api` under
+// different parents would collide on it. Naming is the responsibility set's job
+// precisely so the clash is resolved once, where a human can see it.
+test('an explicit name keeps same-named repos from sharing one store', () => {
+  const a = M.storeFor('/src/team-a/api', '/src', 'team-a-api');
+  const b = M.storeFor('/src/team-b/api', '/src', 'team-b-api');
+  assert.notStrictEqual(a, b);
+  assert.strictEqual(a, path.join('/src', '.archie', 'repos', 'team-a-api'));
+  // Without the name they would be the same directory — this is the trap.
+  assert.strictEqual(M.storeFor('/src/team-a/api', '/src'), M.storeFor('/src/team-b/api', '/src'));
+});
+
 // The whole reason the store moved: a repository Archie reads is an input, not
 // something it owns. If this ever writes into the repo again, a scan of code
 // somebody else maintains starts leaving files behind in it.
