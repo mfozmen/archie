@@ -70,7 +70,9 @@ function fromGitHistory(root, email, sinceMonths = 12) {
   for (const line of log.split('\n')) {
     const l = line.trim();
     if (!l) continue;
-    if (/^[0-9a-f]{7,40}$/.test(l) && !l.includes('/')) { sha = l; total++; seenThisCommit.clear(); continue; }
+    // Exactly 40: --format=%H always emits a full SHA, and a looser pattern would
+    // read a short lowercase-hex filename at the repository root as a commit.
+    if (/^[0-9a-f]{40}$/.test(l)) { sha = l; total++; seenThisCommit.clear(); continue; }
     if (!sha) continue;
     const dir = path.posix.dirname(l);
     if (dir === '.' || seenThisCommit.has(dir)) continue;

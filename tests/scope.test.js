@@ -66,3 +66,15 @@ test('a non-ASCII path is attributed to the right directory', () => {
     .filter(x => x.source === 'git-history');
   assert.deepStrictEqual(hist.map(x => x.path), ['app/Orders']);
 });
+
+test('a hex-named file at the repository root is not read as a commit', () => {
+  const { root } = makeTempRepo();
+  git(root, 'config', 'user.email', 'me@example.com');
+  write(root, 'app/Orders/a.php', '1');
+  write(root, 'deadbeef', '1');                       // 8 lowercase hex chars, no slash
+  commitAll(root, 'a');
+  const hist = S.deriveCandidates(root, { email: 'me@example.com' })
+    .filter(x => x.source === 'git-history');
+  assert.deepStrictEqual(hist.map(x => x.path), ['app/Orders']);
+  assert.match(hist[0].detail, /of your 1 commits/);  // not 2, which a loose regex would give
+});

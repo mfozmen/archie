@@ -199,7 +199,7 @@ function mergeModel(existing, discovered) {
   const unknowns = (existing?.unknowns || []).filter(u => u.source !== MERGE_SOURCE);
   for (const id of disappeared) unknowns.push({
     text: `${prev.get(id).label} is in the inventory but the sweep no longer finds it.`,
-    why: 'A deleted route, a renamed one, and a recipe that stopped matching look identical from here — only a human can say which.',
+    why: 'A deleted route, a renamed one, a recipe that stopped matching, and an area that a narrowed scope no longer sweeps all look identical from here — only a human can say which.',
     source: MERGE_SOURCE,
   });
   return { model: { version: 1, unknowns, entries }, added, kept, disappeared };
