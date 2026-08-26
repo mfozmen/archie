@@ -139,4 +139,4 @@ function main(args) {
   return 0;
 }
 runMain(module, main);
-module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree, countByDirectory, main };
+module.exports = { inScope, deriveCandidates, fromCodeowners, fromGitHistory, fromTree, countByDirectory, readCodeowners, main };
