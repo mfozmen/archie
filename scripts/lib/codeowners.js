@@ -23,13 +23,16 @@ function ownersLine(line) {
 // colleagues' names, which the spec's locked constraint keeps out of anything
 // Archie emits. Both callers need the same split, so neither gets to decide it
 // differently — and the count travels with it so the omission stays visible.
+// Everything after the pattern on a CODEOWNERS line is an owner, and an owner
+// is either a team or a person. A person can be written `@handle` OR as a plain
+// email address, and an email identifies someone at least as precisely as a
+// handle does — so it counts as an individual rather than being dropped.
+// Dropping it understated the count, and left describeOwners with nothing to say
+// about a line owned entirely by people written that way.
 const TEAM = /^@[^/]+\/.+/;
 function splitOwners(owners) {
   const teams = [], individuals = [];
-  for (const o of owners || []) {
-    if (!o.startsWith('@')) continue;
-    (TEAM.test(o) ? teams : individuals).push(o);
-  }
+  for (const o of owners || []) (TEAM.test(o) ? teams : individuals).push(o);
   return { teams, individuals };
 }
 

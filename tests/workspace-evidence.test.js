@@ -160,13 +160,25 @@ test('main prints the gathered evidence as JSON', () => {
   assert.deepStrictEqual(JSON.parse(out.join('\n')).repos.map(r => r.name), ['orders-api']);
 });
 
-// CODEOWNERS also accepts a bare email as an owner, which is neither a team nor
-// an @-handle. It must not be counted as either.
-test('an email owner is neither a team nor an individual handle', () => {
+// CODEOWNERS accepts a bare email as an owner. That is a person written another
+// way, not a third kind of thing — an email identifies someone at least as
+// precisely as a handle does, so it is counted and never repeated.
+test('an email owner counts as a person, like a handle does', () => {
   const ws = makeWorkspace();
   const p = repoIn(ws, 'a');
   put(p, 'CODEOWNERS', '* dev@example.com @org/platform\n');
-  assert.deepStrictEqual(W.ownersIn(p), { teams: ['@org/platform'], individuals: 0, youAreNamed: null, codeownersFile: 'CODEOWNERS' });
+  assert.deepStrictEqual(W.ownersIn(p), { teams: ['@org/platform'], individuals: 1, youAreNamed: null, codeownersFile: 'CODEOWNERS' });
+});
+
+// Dropping email owners left this line with no owners at all, so the sentence
+// ended after "assigns it to" — a proposal that says nothing, shown to a user.
+test('a directory owned only by emails still says how many people own it', () => {
+  const ws = makeWorkspace();
+  const p = repoIn(ws, 'a');
+  put(p, 'CODEOWNERS', 'app/ dev@example.com other@example.com\n');
+  const [entry] = require('../scripts/scope').fromCodeowners(p);
+  assert.match(entry.detail, /assigns it to 2 individuals$/);
+  assert.ok(!entry.detail.includes('@example.com'), 'an email must not be repeated either');
 });
 
 test('a lowercase readme and an extensionless README are both read', () => {
