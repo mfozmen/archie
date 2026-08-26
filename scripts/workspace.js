@@ -58,14 +58,15 @@ function gitIdentities(workspace, repos) {
 // to copy into a prompt, a proposal or anything that might get pasted somewhere.
 // The count still goes out, so the omission is visible rather than silent.
 const TEAM = /^@[^/]+\/.+/;
-function ownersIn(repoPath) {
+function ownersIn(repoPath, handle) {
   const found = readCodeowners(repoPath);
   // The file it came from, because CODEOWNERS lives in one of three places and
   // "assigned to that team" becomes a claim the moment the skill shows it. A
   // claim in this project names where it was read; that rule does not start
   // applying only once the text reaches a page.
-  if (!found) return { teams: [], individuals: 0, codeownersFile: null };
+  if (!found) return { teams: [], individuals: 0, youAreNamed: null, codeownersFile: null };
   const teams = new Set(), individuals = new Set();
+  let you = false;
   for (const line of found.text.split('\n')) {
     const parsed = ownersLine(line);
     if (!parsed) continue;
@@ -74,10 +75,16 @@ function ownersIn(repoPath) {
     // which is the whole question at this level.
     for (const tok of parsed.owners) {
       if (!tok.startsWith('@')) continue;
+      // The one individual worth naming is the person asking. Everybody else
+      // stays a count — this is their own entry in a file, not a colleague's.
+      if (handle && tok.toLowerCase() === handle.toLowerCase()) you = true;
       (TEAM.test(tok) ? teams : individuals).add(tok);
     }
   }
-  return { teams: [...teams].sort(byCodePoint), individuals: individuals.size, codeownersFile: found.rel };
+  // null, not false, when no handle was given: "we did not look" and "we looked
+  // and you are not there" are different facts, and only one of them is evidence.
+  return { teams: [...teams].sort(byCodePoint), individuals: individuals.size,
+    youAreNamed: handle ? you : null, codeownersFile: found.rel };
 }
 
 // Commits by any of the person's identities, in a window. Counted, never used to
@@ -113,7 +120,12 @@ function describe(repoPath) {
   return null;
 }
 
-function gather(workspace) {
+// `handle` is the person's own CODEOWNERS name, which nothing local can derive:
+// the file names @handles and git knows emails. It is asked once and kept in the
+// workspace config. Worth the question — on a real workspace only 15 of 45 repos
+// named a team at all, while 20 named individuals and nothing else, so without it
+// the strongest available signal for those twenty is simply not read.
+function gather(workspace, { handle } = {}) {
   const repos = findRepos(workspace);
   const identities = gitIdentities(workspace, repos);
   return {
@@ -121,8 +133,8 @@ function gather(workspace) {
     identities,
     repos: repos.map(name => {
       const repoPath = path.join(workspace, name);
-      const { teams, individuals, codeownersFile } = ownersIn(repoPath);
-      return { name, teams, individualOwners: individuals, codeownersFile,
+      const { teams, individuals, youAreNamed, codeownersFile } = ownersIn(repoPath, handle);
+      return { name, teams, individualOwners: individuals, youAreNamed, codeownersFile,
         commits: commitsBy(repoPath, identities), description: describe(repoPath) };
     }),
   };
@@ -130,7 +142,7 @@ function gather(workspace) {
 
 function main(args) {
   const workspace = args[0] || process.cwd();
-  const out = gather(workspace);
+  const out = gather(workspace, { handle: args[1] });
   if (!out.repos.length) {
     console.error(`no git repositories directly under ${workspace} — is this the directory your checkouts live in?`);
     return 1;

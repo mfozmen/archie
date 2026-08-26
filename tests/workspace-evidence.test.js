@@ -81,7 +81,7 @@ test('commits are counted under every identity, not just the local one', () => {
 test('a repository with no CODEOWNERS names no teams', () => {
   const ws = makeWorkspace();
   const p = repoIn(ws, 'a');
-  assert.deepStrictEqual(W.ownersIn(p), { teams: [], individuals: 0, codeownersFile: null });
+  assert.deepStrictEqual(W.ownersIn(p), { teams: [], individuals: 0, youAreNamed: null, codeownersFile: null });
 });
 
 // Individuals are counted and not named. They outnumbered teams roughly thirty
@@ -166,7 +166,7 @@ test('an email owner is neither a team nor an individual handle', () => {
   const ws = makeWorkspace();
   const p = repoIn(ws, 'a');
   put(p, 'CODEOWNERS', '* dev@example.com @org/platform\n');
-  assert.deepStrictEqual(W.ownersIn(p), { teams: ['@org/platform'], individuals: 0, codeownersFile: 'CODEOWNERS' });
+  assert.deepStrictEqual(W.ownersIn(p), { teams: ['@org/platform'], individuals: 0, youAreNamed: null, codeownersFile: 'CODEOWNERS' });
 });
 
 test('a lowercase readme and an extensionless README are both read', () => {
@@ -244,4 +244,31 @@ test('a team assignment carries the file it was read from', () => {
   put(p, '.github/CODEOWNERS', '* @org/payments\n');
   assert.strictEqual(W.ownersIn(p).codeownersFile, '.github/CODEOWNERS');
   assert.strictEqual(W.gather(ws).repos[0].codeownersFile, '.github/CODEOWNERS');
+});
+
+// On a real workspace only 15 of 45 repositories named a team, while 20 named
+// individuals and nothing else. For those twenty, whether this person is in the
+// file is the strongest signal there is — and it is their own entry, not a
+// colleague's, so reading it does not breach the names constraint.
+test('being personally named is read, while everyone else stays a count', () => {
+  const ws = makeWorkspace();
+  const p = repoIn(ws, 'a');
+  put(p, 'CODEOWNERS', 'app/ @someone-else @You-Here\n');
+  const mine = W.ownersIn(p, '@you-here');
+  assert.strictEqual(mine.youAreNamed, true, 'case must not decide the answer');
+  assert.strictEqual(mine.individuals, 2);
+  assert.deepStrictEqual(mine.teams, []);
+
+  assert.strictEqual(W.ownersIn(p, '@nobody').youAreNamed, false);
+});
+
+// "We did not look" and "we looked and you are not there" are different facts.
+// Only the second is evidence, so the first must not be reported as false.
+test('with no handle the answer is unknown, not no', () => {
+  const ws = makeWorkspace();
+  const p = repoIn(ws, 'a');
+  put(p, 'CODEOWNERS', 'app/ @someone-else\n');
+  assert.strictEqual(W.ownersIn(p).youAreNamed, null);
+  assert.strictEqual(W.gather(ws).repos[0].youAreNamed, null);
+  assert.strictEqual(W.gather(ws, { handle: '@someone-else' }).repos[0].youAreNamed, true);
 });
