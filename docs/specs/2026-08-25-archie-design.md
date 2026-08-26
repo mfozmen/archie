@@ -20,12 +20,22 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 | Language support | Language-agnostic. No per-framework parsers shipped. |
 | Environment | Opportunistic enrichment: if a knowledge base / issue tracker / grooming plugin is installed, use it; never require it. |
 | Unit of analysis | Two phases: one cheap inventory pass, then selective per-flow depth, accumulating over time. |
-| Scope boundary | Single repo. Outbound calls are labelled boxes at the boundary; never followed. |
+| Trace boundary | A traced flow never follows an outbound call into another system. Outbound calls are labelled boxes at the boundary. **Locked.** |
+| Analysis boundary | One repository at a time. Whether Archie *knows about* more than one is a separate question, and being answered — see #26 and §3. |
 | Knowledge store | Structural model (JSON) is the single source of truth; every human-facing format is rendered from it. |
 | Evidence bar | Static code (`file:line`) plus existing tests. Anything not provable goes to `unknowns[]`. No guessing, ever. |
 | Architecture | Composite skill set + persistent model (a one-shot analyzer and a workflow-fleet were considered and rejected). |
 
-## 3. Repository layout (inside the analyzed repo)
+## 3. Store layout
+
+> **Being revised (#26).** The store below lives inside the analyzed repository, which
+> assumes the repository being read and the directory being written are the same place.
+> They are not, and a responsibility spanning several repositories has no single repo to
+> keep its map in. `storeFor(repoPath, workspace)` is now the one place that decides where
+> a store goes; given a workspace it answers `<workspace>/.archie/repos/<name>`, which
+> leaves analyzed repositories as read-only inputs. Nothing is wired to it yet — what is
+> written below is still what a run produces today.
+
 
 ```
 .archie/
@@ -263,10 +273,17 @@ user's session is set to.
 
 **In:** `inventory`, `explain`, `wiki`, `status`, `recipe`, `config`.
 **Out (v2+):** product-facing feature catalog, backlog/epic generation (feeding a grooming
-plugin), multi-repo flow tracing, a "do everything" wrapper command, a data-ownership map (who owns
+plugin), a "do everything" wrapper command, a data-ownership map (who owns
 which *data* — unrelated to `config.scope`, which merely narrows what this repo's sweep
 looks at),
-feature-flag/dead-code inventory, user-level config defaults.
+feature-flag/dead-code inventory.
+
+Two entries moved off this list rather than being delivered. **Multi-repo flow tracing** stays
+out and always will: it is the trace boundary above, which is locked. What is coming is not
+tracing across repositories but *knowing about* several — a different thing that the old wording
+conflated. **User-level config** was listed as "defaults", a convenience nobody needed; the
+responsibility set that replaces it is not a default but the one piece of state that cannot live
+in any single repository. See #26.
 
 ## 8. Known limits (contract, not embarrassment)
 
