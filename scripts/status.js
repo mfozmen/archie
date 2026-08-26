@@ -1,6 +1,7 @@
 const M = require('./lib/model');
 const { changedFilesSince, markStale } = require('./staleness');
 const { sweep } = require('./sweep');
+const DRIFT_PRINT_LIMIT = 10;
 
 // Flow staleness catches code moving under a page that was traced. It cannot
 // catch a whole entry point being ADDED, because nothing watches a file the
@@ -53,7 +54,11 @@ function statusReport(root) {
 if (require.main === module) {
   const args = process.argv.slice(2);
   const root = args.find(a => !a.startsWith('--')) || process.cwd();
-  const r = statusReport(root);
+  let r;
+  // No model is the normal state before the first inventory, not a crash worth a
+  // stack trace at someone trying the tool for the first time.
+  try { r = statusReport(root); }
+  catch (err) { console.error(err.message); process.exit(1); }
   console.log(`${r.total} entry points · ${r.traced} documented (${r.pct}%) · ${r.stale} stale`);
   r.staleIds.forEach(id => console.log(`  stale: ${id}  → refresh with /archie:explain "${id}"`));
   console.log(`${r.unknowns.length} open questions${r.unknowns.length ? ' → --unknowns to list' : ''}`);
@@ -61,7 +66,12 @@ if (require.main === module) {
   if (d?.error) console.log(`inventory drift not checked: ${d.error}`);
   else if (d?.unrepresented.length) {
     console.log(`${d.unrepresented.length} file(s) produce entry-point hits that the inventory does not cite:`);
-    d.unrepresented.forEach(u => console.log(`  ${u.kind}: ${u.file}`));
+    // Capped so a barely-started inventory on a large repo cannot bury the rest
+    // of the report. The count above is the real one, and the elision is stated
+    // outright — a truncated list that looks complete is worse than no list.
+    d.unrepresented.slice(0, DRIFT_PRINT_LIMIT).forEach(u => console.log(`  ${u.kind}: ${u.file}`));
+    const rest = d.unrepresented.length - DRIFT_PRINT_LIMIT;
+    if (rest > 0) console.log(`  … ${rest} more not shown`);
     console.log('  → re-run /archie:inventory (it merges; your traced flows survive)');
   }
   if (args.includes('--unknowns')) r.unknowns.forEach(u => console.log(`  [${u.source}] ${u.text}`));

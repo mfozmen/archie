@@ -201,3 +201,18 @@ test('an entry that vanished and came back stays stale until it is re-checked', 
   assert.strictEqual(afterReturn.entries[0].traced_at_sha, 'abc');
   assert.deepStrictEqual(afterReturn.entries[0].evidence, [{ file: 'r.php', line: 3 }]);
 });
+
+test('watchFromFlow collects every file the page actually depends on', () => {
+  const f = { ...flow, answers: { ...flow.answers,
+    entry: [{ text: 't', evidence: { file: 'routes/api.php', line: 12 },
+              tests: [{ file: 'tests/ShipTest.php', line: 44 }] }],
+    data: [{ text: 'd', evidence: { file: 'app/Ship.php', line: 30 } },
+           { text: 'd2', evidence: { file: 'app/Ship.php', line: 31 } }] },
+    unknowns: [{ text: 'u', why: 'w', look_at: { file: 'config/queue.php', line: 18 } }] };
+  assert.deepStrictEqual(M.watchFromFlow(f),
+    ['app/Ship.php', 'config/queue.php', 'routes/api.php', 'tests/ShipTest.php']);
+});
+
+test('watchFromFlow never returns empty for a flow with any citation', () => {
+  assert.ok(M.watchFromFlow(flow).length > 0);
+});

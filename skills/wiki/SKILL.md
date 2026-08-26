@@ -39,5 +39,6 @@ That writes, under `.archie/wiki/`:
 
 Print the output paths and offer to open `index.html`. Say plainly how much is
 covered — "12 of 48 entry points documented" is more useful than a page count.
-Remind the user that `.archie/wiki/` is generated and belongs in `.gitignore`;
+Remind the user that `.archie/wiki/` and `.archie/tmp/` are generated and belong
+in `.gitignore`;
 `model.json` and `flows/` are the things worth committing.

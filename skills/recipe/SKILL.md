@@ -30,12 +30,15 @@ costs more than a probe that misses.
 
 ## 3. Save it
 
+Write the corrected recipe to a file, then store it — via a file, never as a
+command-line argument, since a pattern is full of characters a shell will eat:
+
 ```bash
-node -e 'require(process.argv[1]+"/scripts/lib/model").saveRecipe(process.argv[2], JSON.parse(process.argv[3]))' \
-  "${CLAUDE_PLUGIN_ROOT}" "$root" "$RECIPE_JSON"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe "$root"/.archie/tmp/recipe.json
 ```
 
-`saveRecipe` rejects a probe missing a `kind`, `glob` or `pattern`.
+It rejects a probe missing a `kind`, `glob` or `pattern`, naming the file and the
+reason.
 
 ## 4. Try it
 

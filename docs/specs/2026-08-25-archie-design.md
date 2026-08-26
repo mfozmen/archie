@@ -136,7 +136,12 @@ Produces one page per flow, on screen and in `.archie/flows/<id>.json`.
    claim is dropped or demoted to UNKNOWN. When in doubt: demote. One round (plus a single
    fix round if a citation was outright wrong), then done.
 3. **The approved page is persisted**; the entry point becomes `traced` with
-   `traced_at_sha`, and every file the tracer opened joins `watch[]`.
+   `traced_at_sha`, and `watch[]` is derived from the page's own citations — every file
+   a claim, a test or a `look_at` names. Derived rather than self-reported, so it cannot
+   be half-filled: `watch[]` is the entirety of staleness, and an empty one means the page
+   rots while still claiming to be current. It undercounts deliberately — a file that was
+   opened and cited nothing is absent, since no claim depends on it — which can hide new
+   behavior the page ought to mention, but can never falsify what the page already says.
 
 **Directing a trace.** `--focus "<hint>"` tells the tracer where to spend its file
 budget — the answer to "you stopped too early" and "look over here". A hint says where to

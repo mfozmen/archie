@@ -19,8 +19,7 @@ Read the current config, apply the user's request conversationally, show what wi
 change, then write it:
 
 ```bash
-node -e 'require(process.argv[1]+"/scripts/lib/model").saveConfig(process.argv[2], JSON.parse(process.argv[3]))' \
-  "${CLAUDE_PLUGIN_ROOT}" "$root" "$CONFIG_JSON"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
 ```
 
 ## Changing the language is a translation pass, not a re-trace
@@ -36,7 +35,11 @@ language would spend the whole budget and risk losing evidence, so instead:
    touches a citation has corrupted the evidence.
 3. Translate the narrative only. Identifiers — file paths, route labels, class
    and column names, entry-point ids — stay in the original.
-4. Save each flow with `saveFlow`, which re-validates the shape.
+4. Save each flow through `store.js`, which re-validates the shape:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow "$root"/.archie/tmp/flow.json
+   ```
 
 Then re-render:
 

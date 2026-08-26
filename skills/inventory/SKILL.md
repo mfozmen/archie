@@ -10,9 +10,21 @@ description: Use when someone asks what is in a codebase, what its entry points 
 1. `root="$(git rev-parse --show-toplevel)"`. Not a git repository → say so and stop.
 2. If `$root/.archie/config.json` is missing, ask **one** question: which language
    should the narrative be written in? Guess a default from the repo's README and
-   offer it. Write the answer to `.archie/config.json` as `{"language":"<code>"}`.
+   offer it. Write `{"language":"<code>"}` to a file, then store it — `store.js` is
+   the only thing that writes into `.archie/`, including on the first run:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" config "$root"/.archie/tmp/config.json
+   ```
 3. Narrative text is written in the configured language. Identifiers — file paths,
    route labels, class names, entry-point ids — are **never** translated.
+
+Scratch JSON goes under `$root/.archie/tmp/` (`mkdir -p` it first), never a fixed
+path in `/tmp`: two
+Archie sessions on two different repositories would otherwise write the same file
+at the same time. (Two sessions on the *same* repository are not supported — they
+would race on `model.json` itself, which no temp path can fix.) `.archie/tmp/` is
+generated, like `.archie/wiki/`, and belongs in `.gitignore`.
 
 ## The rule that outranks everything else
 
@@ -39,9 +51,12 @@ From the fingerprint, write `.archie/recipe.json`:
 
 `kind` is one of `http`, `queue`, `cron`, `cli`, `event`, `public-api`. Write it with:
 
+Write it to a file, then store it. **Always via a file, never as a command-line
+argument** — a route label or a pattern containing a quote would break the shell
+before node ever saw it, and a real model runs to hundreds of entries.
+
 ```bash
-node -e 'require(process.argv[1]+"/scripts/lib/model").saveRecipe(process.argv[2], JSON.parse(process.argv[3]))' \
-  "${CLAUDE_PLUGIN_ROOT}" "$root" "$RECIPE_JSON"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe "$root"/.archie/tmp/recipe.json
 ```
 
 Show the recipe to the user. It is hand-editable, and `/archie:recipe "<hint>"`
@@ -83,19 +98,18 @@ so far.
 emit `coverage: "none"` with an empty `watch[]`, so overwriting would silently
 erase every flow `/archie:explain` has proved. Merge:
 
+Write the discovered set to a file, then merge:
+
 ```bash
-node -e '
-  const M = require(process.argv[1]+"/scripts/lib/model");
-  const r = M.mergeModel(M.loadModel(process.argv[2]), JSON.parse(process.argv[3]));
-  M.saveModel(process.argv[2], r.model);
-  console.log(JSON.stringify({added: r.added, kept: r.kept, disappeared: r.disappeared}, null, 2));
-' "${CLAUDE_PLUGIN_ROOT}" "$root" "$DISCOVERED_JSON"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" merge-inventory "$root"/.archie/tmp/discovered.json
 ```
+
+It prints `{added, kept, disappeared}`.
 
 `mergeModel` gives discovery the last word on **where** an entry point is (a moved
 route gets its new `file:line`) and the existing model the last word on what has
 been **learned** about it (`coverage`, `traced_at_sha`, `watch[]` all survive).
-`saveModel` then validates and will reject a record missing evidence, or two ids
+`store.js` validates and will reject a record missing evidence, or two ids
 that collide on one flow filename. Fix the data, never the validator.
 
 Each disappeared entry is also written into `model.unknowns` by the merge, so it
