@@ -89,3 +89,24 @@ test('with no configured output the wiki lands inside the store', () => {
   M.saveConfig(store, {});
   assert.strictEqual(M.outputDir(store, workspace), path.join(store, 'wiki'));
 });
+
+// The unit test above proves outputDir() honours the base it is handed. This
+// one proves render's main() hands it the right one — which is where the bug
+// would actually live, and where a wiki configured with a relative output would
+// otherwise be written straight back into the repository Archie only read.
+test('render sends a configured output to the workspace, never into the repo', () => {
+  const { root: repo } = makeTempRepo();
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
+  const store = M.storeFor(repo, workspace);
+  M.saveConfig(store, { output: 'system-map' });
+  M.saveModel(store, { version: 1, unknowns: [], entries: [
+    { id: 'http.GET./x', kind: 'http', label: 'GET /x',
+      evidence: [{ file: 'routes.js', line: 1 }], coverage: 'none' }] });
+
+  const before = fs.readdirSync(repo).sort();
+  const code = require('../scripts/render').main([repo, '--workspace', workspace]);
+
+  assert.strictEqual(code, 0);
+  assert.ok(fs.existsSync(path.join(workspace, 'system-map', 'md')), 'wiki belongs in the workspace');
+  assert.deepStrictEqual(fs.readdirSync(repo).sort(), before, 'the repository must be untouched');
+});

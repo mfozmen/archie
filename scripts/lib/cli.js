@@ -22,13 +22,18 @@ function runMain(mod, main) {
 // accident.
 function paths(args) {
   const rest = [];
-  let store = null;
+  let store = null, workspace = null;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--store') { store = args[++i]; continue; }
+    if (args[i] === '--workspace') { workspace = args[++i]; continue; }
     rest.push(args[i]);
   }
   const repo = rest.find(a => !a.startsWith('--')) || process.cwd();
-  return { repo, store: store || require('./model').storeFor(repo), rest };
+  // The workspace, when there is one, is also what a relative config.output
+  // resolves against. Anchoring that to the repository instead would render a
+  // wiki straight back into code Archie was only supposed to read — the failure
+  // moving the store exists to prevent.
+  return { repo, workspace, base: workspace || repo, store: store || require('./model').storeFor(repo, workspace), rest };
 }
 
 module.exports = { runMain, paths };

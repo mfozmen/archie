@@ -268,7 +268,7 @@ function readMermaid(pluginRoot) {
 }
 
 function main(args) {
-  const { repo, store } = paths(args);
+  const { repo, store, base } = paths(args);
   const model = M.loadModel(store);
   if (!model) { console.error('no model — run /archie:inventory'); return 1; }
   const { fingerprint } = require('./fingerprint');
@@ -276,17 +276,17 @@ function main(args) {
   const fp = fingerprint(repo);
   const scope = M.loadConfig(store)?.scope;
   const pages = renderMarkdownPages(model, flows, fp, scope);
-  const wiki = M.outputDir(store, repo);
+  const wiki = M.outputDir(store, base);
   const out = path.join(wiki, 'md');
   fs.mkdirSync(out, { recursive: true });
   for (const [name, content] of pages) fs.writeFileSync(path.join(out, name), content);
-  console.log(`${pages.size} markdown pages → ${path.relative(repo, out)}`);
+  console.log(`${pages.size} markdown pages → ${path.relative(base, out)}`);
   if (args.includes('--md')) return 0;
 
   const mermaidJs = readMermaid(path.join(__dirname, '..'));
   fs.writeFileSync(path.join(wiki, 'index.html'), renderHtml(model, flows, fp, mermaidJs, scope));
   fs.writeFileSync(path.join(wiki, 'openapi.yaml'), renderOpenapi(model, flows, scope));
-  console.log(`wiki → ${path.relative(repo, path.join(wiki, 'index.html'))}, openapi.yaml`);
+  console.log(`wiki → ${path.relative(base, path.join(wiki, 'index.html'))}, openapi.yaml`);
   return 0;
 }
 runMain(module, main);
