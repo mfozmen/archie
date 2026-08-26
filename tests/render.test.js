@@ -99,3 +99,15 @@ test('a scoped map says so on every surface it renders', () => {
   // Unscoped renders carry no such banner — it would be a false caveat.
   assert.ok(!/not a map of the whole system/i.test(R.renderMarkdownPages(model, [flow], fp).get('index.md')));
 });
+
+test('the scope caveat reaches the pages people actually share', () => {
+  const scope = { label: 'Orders', paths: ['app/Orders/**'] };
+  const pages = R.renderMarkdownPages(model, [flow], fp, scope);
+  // A flow page is linkable on its own and is often the only page a reader opens.
+  assert.match(pages.get('http-post-api-orders-id-ship.md'), /not a map of the whole system/i);
+  assert.match(pages.get('open-questions.md'), /not a map of the whole system/i);
+  assert.match(R.renderOpenapi(model, [flow], scope), /not a map of the whole system/i);
+  // ...and stays absent when there is nothing to caveat.
+  assert.ok(!/not a map of the whole system/i.test(
+    R.renderMarkdownPages(model, [flow], fp).get('http-post-api-orders-id-ship.md')));
+});

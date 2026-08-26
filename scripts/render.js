@@ -28,8 +28,11 @@ function claimLine(c) {
   const tests = c.tests?.length ? ' · tests: ' + c.tests.map(cite).join(', ') : ' `(untested)`';
   return `- ${c.text} — ${cite(c.evidence)}${tests}`;
 }
-function flowPage(flow) {
-  const out = [`# ${flow.id}`, '', flow.summary, ''];
+function flowPage(flow, scope) {
+  const note = scopeNote(scope);
+  // On the flow page too, not only the index: a flow page is linkable on its own
+  // and is frequently the only page a reader ever opens.
+  const out = [`# ${flow.id}`, '', ...(note ? ['> ' + note, ''] : []), flow.summary, ''];
   for (const [key, q] of QUESTIONS) {
     out.push(`## ${q}`, '');
     const claims = flow.answers[key];
@@ -67,14 +70,14 @@ function renderMarkdownPages(model, flows, fp, scope) {
   if (undoc.length) { idx.push('', '## Not yet documented', ''); undoc.forEach(e => idx.push(`- ${e.label}`)); }
   idx.push('', '```mermaid', mermaidTopology(fp), '```', '');
   pages.set('index.md', idx.join('\n'));
-  const oq = ['# Open questions', ''];
+  const oq = ['# Open questions', '', ...(note ? ['> ' + note, ''] : [])];
   model.unknowns.forEach(u => oq.push(`- [inventory] ${u.text}`));
   const sortedFlows = [...flows].sort(byId);
   for (const f of sortedFlows) f.unknowns.forEach(u => oq.push(`- [${f.id}] ${u.text}`));
   pages.set('open-questions.md', oq.join('\n') + '\n');
   // Sorted, so the Map's own iteration order is a property of the model, not of
   // whatever order listFlows() happened to read the directory in.
-  for (const f of sortedFlows) pages.set(slug(f.id) + '.md', flowPage(f));
+  for (const f of sortedFlows) pages.set(slug(f.id) + '.md', flowPage(f, scope));
   return pages;
 }
 
@@ -84,7 +87,7 @@ function renderMarkdownPages(model, flows, fp, scope) {
 // prove from static evidence is left as a visible TODO rather than invented.
 const yamlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
-function renderOpenapi(model, flows) {
+function renderOpenapi(model, flows, scope) {
   const flowById = new Map(flows.map(f => [f.id, f]));
   const paths = new Map();
   for (const en of [...model.entries].sort((a, b) => a.id.localeCompare(b.id))) {
@@ -95,7 +98,10 @@ function renderOpenapi(model, flows) {
     if (!paths.has(urlPath)) paths.set(urlPath, []);
     paths.get(urlPath).push({ method: method.toLowerCase(), en, flow: flowById.get(en.id) });
   }
-  const out = ['openapi: 3.0.3', 'info:', "  title: 'Archie draft'", "  version: '0.1.0'", 'paths:'];
+  const note = scopeNote(scope);
+  const out = ['openapi: 3.0.3', 'info:', "  title: 'Archie draft'", "  version: '0.1.0'"];
+  if (note) out.push(`  description: ${yamlStr(note.replace(/\*\*|`/g, ''))}`);
+  out.push('paths:');
   for (const [urlPath, ops] of paths) {
     out.push(`  ${urlPath}:`);
     const params = [...urlPath.matchAll(/\{([^}]+)\}/g)].map(x => x[1]);
@@ -213,7 +219,7 @@ if (require.main === module) {
   if (fs.existsSync(vendored)) mermaidJs = fs.readFileSync(vendored, 'utf8');
   else console.error('vendor/mermaid.min.js missing — diagrams will not render in index.html');
   fs.writeFileSync(path.join(wiki, 'index.html'), renderHtml(model, flows, fp, mermaidJs, scope));
-  fs.writeFileSync(path.join(wiki, 'openapi.yaml'), renderOpenapi(model, flows));
+  fs.writeFileSync(path.join(wiki, 'openapi.yaml'), renderOpenapi(model, flows, scope));
   console.log(`wiki → ${path.relative(root, path.join(wiki, 'index.html'))}, openapi.yaml`);
 }
 module.exports = { mermaidSequence, mermaidTopology, renderMarkdownPages, renderOpenapi, renderHtml };

@@ -98,8 +98,9 @@ On the first run it asks three questions, once: what language to write in, **wha
 you are responsible for**, and where to put the output. For the second it proposes
 candidates with the evidence behind each — a `CODEOWNERS` assignment, how many of
 your own commits touched a directory — and you confirm or edit them. Scope narrows
-the sweep itself, and every page it produces then says outright that it is **not a
-map of the whole system**. Take the whole repository if you want it; scope is a
+the sweep itself, and every page it produces — the index, each flow page, the open
+questions, the OpenAPI draft — then says outright that it is **not a map of the
+whole system**. Take the whole repository if you want it; scope is a
 convenience, not a recommendation.
 
 ```

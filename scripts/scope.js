@@ -58,8 +58,11 @@ function fromCodeowners(root, teams) {
 // ranks second.
 function fromGitHistory(root, email, sinceMonths = 12) {
   if (!email) return [];
-  const log = tryRun('git', ['-C', root, 'log', `--since=${sinceMonths} months ago`,
-    `--author=${email}`, '--format=%H', '--name-only']);
+  // core.quotePath=false for the same reason churn.js needs it: a quoted
+  // "app/sipari\305\237.php" keeps its leading quote through dirname and
+  // becomes a candidate called "app, mis-attributing the directory silently.
+  const log = tryRun('git', ['-C', root, '-c', 'core.quotePath=false', 'log',
+    `--since=${sinceMonths} months ago`, `--author=${email}`, '--format=%H', '--name-only']);
   if (!log) return [];
   const perDir = new Map();
   let sha = null, total = 0;

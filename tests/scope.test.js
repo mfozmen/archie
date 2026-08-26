@@ -57,3 +57,12 @@ test('with no CODEOWNERS and no history, the tree is the fallback', () => {
   assert.ok(c.every(x => x.source === 'tree'));
   assert.ok(c.some(x => x.path === 'src'));
 });
+
+test('a non-ASCII path is attributed to the right directory', () => {
+  const { root } = makeTempRepo();
+  git(root, 'config', 'user.email', 'me@example.com');
+  write(root, 'app/Orders/sipariş.php', '1'); commitAll(root, 'a');
+  const hist = S.deriveCandidates(root, { email: 'me@example.com' })
+    .filter(x => x.source === 'git-history');
+  assert.deepStrictEqual(hist.map(x => x.path), ['app/Orders']);
+});
