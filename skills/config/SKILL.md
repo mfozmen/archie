@@ -39,7 +39,10 @@ Re-derive candidates rather than asking the user to type paths from memory:
 node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo"
 ```
 
-It is written to that repository's own store, with `"${WS[@]}"`:
+It is written to that repository's own store, with `"${WS[@]}"`, and — like every
+config write — carries the whole object: in a single-repository run that same file
+also holds the language and the output, and a write that leaves them out is
+refused rather than allowed to drop them.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
