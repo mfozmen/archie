@@ -21,7 +21,7 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 | Environment | Opportunistic enrichment: if a knowledge base / issue tracker / grooming plugin is installed, use it; never require it. |
 | Unit of analysis | Two phases: one cheap inventory pass, then selective per-flow depth, accumulating over time. |
 | Trace boundary | A traced flow never follows an outbound call into another system. Outbound calls are labelled boxes at the boundary. **Locked.** |
-| Analysis boundary | One repository at a time. Whether Archie *knows about* more than one is a separate question, and being answered — see #26 and §3. |
+| Analysis boundary | As many repositories as the user says are theirs. Archie runs from the directory the checkouts live in, keeps its store under that workspace, and never writes into a repository it was asked to read — see §3. |
 | Knowledge store | Structural model (JSON) is the single source of truth; every human-facing format is rendered from it. |
 | Evidence bar | Static code (`file:line`) plus existing tests. Anything not provable goes to `unknowns[]`. No guessing, ever. |
 | Other people's names | Never collected, never emitted. Archie reads files full of colleagues — `CODEOWNERS`, git history — and takes from them only what answers the question it was asked. Teams are named because "which team am I on" needs them; individuals are counted instead, so the omission is visible rather than silent. **Locked.** |
@@ -29,24 +29,31 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 
 ## 3. Store layout
 
-> **Being revised (#26).** The store below lives inside the analyzed repository, which
-> assumes the repository being read and the directory being written are the same place.
-> They are not, and a responsibility spanning several repositories has no single repo to
-> keep its map in. `storeFor(repoPath, workspace)` is now the one place that decides where
-> a store goes; given a workspace it answers `<workspace>/.archie/repos/<name>`, which
-> leaves analyzed repositories as read-only inputs. The scripts take `--workspace` and
-> `--store` and are tested against both; what has not adopted them is the skill layer, which
-> still passes a repository and nothing else. So the layout below is still what a run
-> produces today, and will be until the skills change.
->
-> The set itself lives at `<workspace>/.archie/config.json`, alongside `language`, `output`
-> and `scope`: the `workspace` it belongs to, the user's own `handle` as CODEOWNERS spells
-> it, `repos[]` — each `{name, why}`, where `why` is the evidence the user was shown when
-> they said yes — and `declined[]`, bare names. A repo entry without a `why` is refused, on
-> the same rule as an unknown without one: the set is where Archie says a repository is
-> yours, and it may not say so with nothing behind it. `declined[]` carries no `why` because
-> there is nothing there to justify — it stops a question being asked twice and records that
-> this person said "not mine", never a claim about whose the repository is.
+Where the store goes is decided in exactly one place, `storeFor(repoPath, workspace)`:
+
+- **No workspace** — `<repo>/.archie`, the layout shown below. This is a run started from
+  inside a single repository, and it is unchanged.
+- **A workspace** — `<workspace>/.archie/repos/<name>`, and **the analyzed repositories are
+  never written to**. They are read-only inputs, which is what makes it safe to map code
+  somebody else maintains, and what lets a repository that had to be cloned to be read need
+  nothing written back into it.
+
+The second case is the normal one: nobody's responsibility is a single repository, so
+Archie is normally started from the directory the checkouts live in. The single-repository
+case is not a special path — it is the general one with an empty workspace argument.
+
+The responsibility set lives at `<workspace>/.archie/config.json`, alongside `language`,
+`output` and `scope`: the `workspace` it belongs to, the user's own `handle` as CODEOWNERS
+spells it, `repos[]` — each `{name, why}`, where `why` is the evidence the user was shown
+when they said yes — and `declined[]`, bare names. A repo entry without a `why` is refused,
+on the same rule as an unknown without one: the set is where Archie says a repository is
+yours, and it may not say so with nothing behind it. `declined[]` carries no `why` because
+there is nothing there to justify — it stops a question being asked twice and records that
+this person said "not mine", never a claim about whose the repository is.
+
+A `name` must be a plain directory name. It becomes a directory under the store, so one
+carrying a separator or a `..` would walk the store out of the workspace and into a
+repository Archie was only asked to read.
 
 
 ```
