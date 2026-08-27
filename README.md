@@ -193,6 +193,18 @@ cleanly in review. Add `.archie/tmp/` to `.gitignore`, and the wiki directory to
 picked somewhere in the repo on purpose: a map reviewed in pull requests is a legitimate
 reason to commit rendered output.
 
+## Where the name came from
+
+Two candidates, and the honest one wins.
+
+**Architecture**, because the thing it produces is a system map. **Archaeology**, because of
+what actually happens on the way there: you are not designing anything. You are brushing dirt
+off something somebody else buried, working out what it was for from what is left of it, and
+writing *purpose unknown* on the label more often than you would like.
+
+The second reading is the accurate one, which makes it the one that counts. The UNKNOWNS list
+is the excavation notebook.
+
 ## Status
 
 **v0.1 — complete, partly proven.** Being precise about that, because this is a tool
