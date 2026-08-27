@@ -37,13 +37,16 @@ before, since `$repo` does not exist until here:
 
 ```bash
 repo="$ws/<name>"       # in the single case this was already set above
-tmp="$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$repo', '${ws:-}')")/tmp"
+store="$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$repo', '${ws:-}')")"
+tmp="$store/tmp"
 mkdir -p "$tmp"
 ```
 
-`$tmp` is that repository's own store and never a shared path: two repositories
-writing scratch to one directory would overwrite each other's half-written
-files.
+`$store` is where that repository's data lives, and every path this skill reads
+or writes hangs off it — asked for, never assembled, because where it lands is
+exactly what changes between the two cases. `$tmp` is inside it and never a
+shared path: two repositories writing scratch to one directory would overwrite
+each other's half-written files.
 
 `"${WS[@]}"` goes on **every** script call that reads or writes one
 repository's data — model, flow, recipe, sweep. It is empty in the single case,
@@ -57,7 +60,8 @@ sends a path down into `repos/<name>/`.
 
 ```bash
 cfg="${ws:-$root}"      # the workspace, or the single repository
-cfgtmp="$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$cfg')")/tmp"
+cfgstore="$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$cfg')")"
+cfgtmp="$cfgstore/tmp"
 mkdir -p "$cfgtmp"
 ```
 
@@ -66,7 +70,7 @@ inside one repository's store while the check below looks at the top — so firs
 run never finds it, and the whole point of `declined[]` (never asking twice) is
 lost silently.
 
-**2. Config.** `$cfg/.archie/config.json`. Missing → run the **first-run setup**
+**2. Config.** `$cfgstore/config.json`. Missing → run the **first-run setup**
 below. It decides what the map is allowed to contain, so ask; do not pick for
 the user.
 
@@ -185,7 +189,7 @@ dependencies. Most of the topology falls out here without reading any code.
 
 ## Step 1 — derive the recipe (LLM, once)
 
-From the fingerprint, write `.archie/recipe.json`:
+From the fingerprint, write `$store/recipe.json`:
 
 ```json
 { "stack": "<what you concluded>", "probes": [{ "kind": "http", "glob": "routes/**/*.php", "pattern": "Route::(get|post|put|patch|delete)" }] }
@@ -215,11 +219,11 @@ probe runs — filtering afterwards would have spent the work already.
 
 Print the per-probe counts and **every zero-hit warning verbatim**. A probe with
 0 hits means the recipe is probably wrong; never let it pass silently. The hits
-land in `.archie/sweep.json`.
+land in `$store/sweep.json`.
 
 ## Step 3 — classify the hits (subagents, schema-bound)
 
-Read `.archie/sweep.json` and dispatch the **inventory-worker** agent:
+Read `$store/sweep.json` and dispatch the **inventory-worker** agent:
 
 - **≤ 150 hits:** one dispatch with the whole array.
 - **> 150 hits:** split on top-level directory boundaries and dispatch the

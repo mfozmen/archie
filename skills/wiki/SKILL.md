@@ -9,7 +9,7 @@ Follow the preamble in the `inventory` skill (repo root, config, language rules)
 
 ## This skill writes nothing of its own
 
-Every page is rendered from `.archie/model.json` and `.archie/flows/*.json` by a
+Every page is rendered from `$store/model.json` and `$store/flows/*.json` by a
 deterministic script. **Do not generate, summarise, embellish or "improve" any
 content here — there is no LLM step in this command, by design.** The same model
 in must produce the same bytes out; that is what makes the wiki trustworthy and
@@ -22,7 +22,7 @@ at render time.
 node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$repo" "${WS[@]}"
 ```
 
-That writes, under the configured `output` directory (`.archie/wiki/` unless
+That writes, under the configured `output` directory (`wiki/` inside the store unless
 `/archie:config` changed it):
 
 - `md/index.md` — the entry-point table with coverage, plus everything not yet
@@ -45,7 +45,7 @@ of the whole system**. Do not soften or drop it when summarising: an inventory o
 12 endpoints read as "this system has 12 endpoints" is precisely the confident
 wrong belief this tool exists to prevent.
 
-Remind the user that the output directory and `.archie/tmp/` are generated and
-belong in `.gitignore` — unless they chose an output path they intend to commit,
+In the single-repository case, remind the user that the output directory and the
+store's `tmp/` are generated and belong in `.gitignore` — unless they chose an output path they intend to commit,
 which is a legitimate choice for a map meant to be reviewed in pull requests;
 `model.json` and `flows/` are the things worth committing.

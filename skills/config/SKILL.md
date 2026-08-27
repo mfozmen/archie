@@ -7,7 +7,8 @@ description: Change Archie's settings for this repository — language, scope an
 
 Follow the preamble in the `inventory` skill (repo root, config, language rules).
 
-`.archie/config.json` is small and managed here rather than hand-edited:
+`config.json`, at the top of the store, is small and managed here rather than
+hand-edited:
 
 ```json
 { "language": "en",
@@ -60,9 +61,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.jso
 Existing flows already carry proven claims. Re-tracing them to change their
 language would spend the whole budget and risk losing evidence, so instead:
 
-1. For each flow in the store's `flows/` — ask `storeFor()` for the store, never
-   assemble the path, because in a workspace it is not beside the repository —
-   translate **only** the natural-language
+1. For each flow in `$store/flows/`, translate **only** the natural-language
    fields: each claim's `text`, the flow `summary`, and each unknown's `text` and
    `why`.
 2. Leave every structural field byte-identical: `id`, `evidence`, `tests`,

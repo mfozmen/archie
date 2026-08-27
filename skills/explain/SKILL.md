@@ -1,6 +1,6 @@
 ---
 name: explain
-description: Explain one entry point end to end, every claim cited — how does this work? Use when someone asks how a specific endpoint, job, command or webhook works. Traces one entry point, verifies every claim against the code, and writes .archie/flows/<slug>.json.
+description: Explain one entry point end to end, every claim cited — how does this work? Use when someone asks how a specific endpoint, job, command or webhook works. Traces one entry point, verifies every claim against the code, and writes flows/<slug>.json into the store.
 ---
 
 # explain — "How does this work?"
@@ -9,7 +9,7 @@ Follow the preamble in the `inventory` skill (repo root, config, language rules)
 
 ## 1. Resolve the argument to one entry point
 
-Load `.archie/model.json`. No model → tell the user to run `/archie:inventory`
+Load `$store/model.json`. No model → tell the user to run `/archie:inventory`
 first and stop. Fuzzy-match the argument against entry-point labels and ids. More
 than one plausible match → ask the user which one with AskUserQuestion, listing
 the candidates. Never guess between two entry points.
@@ -117,7 +117,8 @@ just read, not folding in a fresh discovery pass.
 node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$repo" --md "${WS[@]}"
 ```
 
-then print `.archie/wiki/md/<slug>.md`.
+then print the rendered `md/<slug>.md`, under the output directory `render.js`
+just reported.
 
 ## The honesty rules, restated because this is where they bite
 

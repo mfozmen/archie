@@ -171,12 +171,18 @@ test('$root appears only where the preamble defines it', () => {
   }
 });
 
-// The store is not beside the repository any more, so a skill that builds
-// "$repo/.archie/..." by hand reads a path that only exists in the single case.
-test('no skill hand-builds a store path from the repository', () => {
+// The store is not beside the repository any more, so any path written as
+// `.archie/<something>` names a location that only exists in the single case.
+// The first version of this looked only for quoted shell paths, and missed two
+// stale lines of prose in one skill that were wrong in exactly the same way —
+// a reader follows a sentence as readily as a command. So: no member of the
+// store is addressed by that name at all, in code or in text. `$repo/.archie`
+// with nothing after it is left alone; that is the preamble explaining the
+// single case, not a path anything reads.
+test('no skill names a path inside .archie', () => {
   for (const s of SURFACES) {
     const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
-    for (const m of src.matchAll(/"\$\w+\/\.archie\/[^"]*"/g))
+    for (const m of src.matchAll(/\.archie\/\S+/g))
       assert.fail(`${s}: store path built by hand — ${m[0]}. Ask storeFor() instead.`);
   }
 });
