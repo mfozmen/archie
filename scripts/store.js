@@ -20,8 +20,12 @@ const USAGE = `usage: store.js <root> <what> <file.json> [--workspace <dir>] [--
   merge-inventory   merge a discovered entry array into the existing model,
                     preserving what explain proved; prints {added, kept, disappeared}`;
 
+// Everything a config can hold except `scope`, which is the one setting that is
+// one repository's own.
+const SET_WIDE = ['workspace', 'handle', 'repos', 'declined', 'language', 'output'];
+
 function main(args) {
-  const { store, rest } = paths(args);
+  const { store, workspace, rest } = paths(args);
   const [root, what, file] = rest;
   if (!root || !what || !file) return die(USAGE);
 
@@ -32,7 +36,19 @@ function main(args) {
   try {
     switch (what) {
       case 'recipe': M.saveRecipe(store, data); break;
-      case 'config': M.saveConfig(store, data); break;
+      case 'config': {
+        // --workspace says this config is one repository's, and the only setting
+        // a repository owns is the scope of its own sweep. Everything else
+        // belongs to the set and is read from the top of the store, so written
+        // here it would be validated, stored, reported back as changed, and
+        // then read by nothing. Refuse it where the mistake is made rather than
+        // leaving someone to notice their setting never took effect.
+        const set = SET_WIDE.filter(k => k in data);
+        if (workspace && set.length) return die(`${file}: ${set.join(', ')} `
+          + `${set.length > 1 ? 'belong' : 'belongs'} to the whole set, not to one repository — `
+          + `write ${set.length > 1 ? 'them' : 'it'} with the workspace as the root and no --workspace flag`);
+        M.saveConfig(store, data); break;
+      }
       case 'model': M.saveModel(store, data); break;
       case 'flow': M.saveFlow(store, data); break;
       case 'merge-inventory': {

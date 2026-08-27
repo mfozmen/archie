@@ -164,6 +164,37 @@ test('store: usage, unreadable input, and an unknown target all explain themselv
   assert.match(capture(() => main([root, 'merge-inventory', p])).err, /expects an array/);
 });
 
+// Which file a config lands in is decided by one flag, and getting it wrong is
+// the failure this whole split exists to end: the setting validates, saves, and
+// is reported back as changed, while the code that would act on it reads a
+// different file and finds nothing. Nothing downstream can notice — both files
+// are legitimate — so it has to be refused here.
+test('store: the set\'s settings are refused when written to one repository', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const ws = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'archie-ws-'));
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', repos: [] }));
+  const r = capture(() => main([root, 'config', p, '--workspace', ws]));
+  assert.strictEqual(r.code, 1);
+  assert.match(r.err, /repos, language belong to the whole set/);
+  assert.match(r.err, /no --workspace flag/, 'the message has to say how to fix it');
+
+  // One key, so the sentence has to read as one: "belongs", "write it".
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
+  assert.match(capture(() => main([root, 'config', p, '--workspace', ws])).err,
+    /language belongs to the whole set.*write it with/s);
+
+  // A scope is that repository's own, so the same call is exactly right for it.
+  fs.writeFileSync(p, JSON.stringify({ scope: { label: 'Orders', paths: ['app/**'] } }));
+  assert.strictEqual(capture(() => main([root, 'config', p, '--workspace', ws])).code, 0);
+  // And the set's settings are fine at the top, where they are read from.
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
+  assert.strictEqual(capture(() => main([ws, 'config', p])).code, 0);
+});
+
 test('render says so when the vendored bundle is missing', () => {
   const { root } = makeTempRepo();
   const { readMermaid } = require('../scripts/render');
