@@ -61,7 +61,12 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.jso
 Existing flows already carry proven claims. Re-tracing them to change their
 language would spend the whole budget and risk losing evidence, so instead:
 
-1. For each flow in `$store/flows/`, translate **only** the natural-language
+The language is one setting for the whole responsibility set, so a change to it
+is a pass over **every** repository in `repos[]`, not just the one you are
+standing in. Translate one repository and the rest keep answering in the old
+language, which is worse than not having changed it.
+
+1. For each flow in `$store/flows/`, per repository in the set, translate **only** the natural-language
    fields: each claim's `text`, the flow `summary`, and each unknown's `text` and
    `why`.
 2. Leave every structural field byte-identical: `id`, `evidence`, `tests`,
