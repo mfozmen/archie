@@ -31,6 +31,26 @@ test('sweep finds hits, filters comments, reports zero-probes', () => {
   assert.strictEqual(res.zeroProbes[0].kind, 'queue');
 });
 
+// The equivalence test above proves the two paths agree on the fixture it was
+// written with. This one names the dialect they have to agree ON: a brace group
+// is how a recipe says "these two top-level directories", ripgrep has always
+// understood it, and the built-in scan did not — so the same recipe found
+// everything or nothing depending on whether ripgrep happened to be installed.
+test('rg and grep paths agree on a brace glob, which recipes are written with', () => {
+  const { root } = makeTempRepo();
+  write(root, 'modules/orders/routes.php', "<?php\nRoute::get('/orders', 'C@i');\n");
+  write(root, 'app/Http/routes.php', "<?php\nRoute::get('/health', 'C@i');\n");
+  write(root, 'vendor/pkg/routes.php', "<?php\nRoute::get('/nope', 'C@i');\n");
+  commitFixture(root);
+  const braced = { stack: 'laravel', probes: [
+    { kind: 'http', glob: '{modules,app}/**/*.php', pattern: "Route::(get|post)\\(" }] };
+
+  const viaGrep = sweep(root, braced, { forceGrep: true }).hits;
+  assert.deepStrictEqual(viaGrep.map(h => h.file), ['app/Http/routes.php', 'modules/orders/routes.php']);
+  if (!hasBin('rg')) { console.log('skip: ripgrep absent, rg path unverified'); return; }
+  assert.deepStrictEqual(sweep(root, braced, { forceGrep: false }).hits, viaGrep);
+});
+
 // The equivalence test: without it, "same model in -> same output out" is a wish.
 // Multi-file on purpose: with one file, any hit order looks deterministic, so a
 // single-file fixture cannot catch rg parallelising the file list out of order.

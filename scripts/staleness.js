@@ -10,12 +10,32 @@ function changedFilesSince(root, sha) {
   if (tryRun('git', ['-C', root, 'cat-file', '-e', `${sha}^{commit}`]) === null) return null;
   return gitLines(root, ['diff', '--name-only', `${sha}..HEAD`]);
 }
+// The glob dialect a recipe is written in. It has to be ripgrep's, because a
+// recipe is written once and then read by whichever of the two sweep paths is
+// available — and a glob that means different things to them makes the inventory
+// depend on whether ripgrep is installed, which is the one thing the sweep is
+// built not to do. `{a,b}` cost a real run every entry point in a repository
+// that keeps its code in two top-level directories: the fallback read the braces
+// as literal characters, matched nothing, and the sweep reported the recipe as
+// probably wrong.
 function globToRegex(glob) {
-  const re = glob.split('**/').map(part =>
-    part.split('**').map(p =>
-      p.split('*').map(s => s.replace(/[.+?^${}()|[\]\\]/g, String.raw`\$&`)).join('[^/]*')
-    ).join('.*')
-  ).join('(?:.*/)?');
+  let re = '', depth = 0;
+  for (let i = 0; i < glob.length;) {
+    if (glob.startsWith('**/', i)) { re += '(?:.*/)?'; i += 3; }
+    else if (glob.startsWith('**', i)) { re += '.*'; i += 2; }
+    else if (glob[i] === '*') { re += '[^/]*'; i += 1; }
+    else if (glob[i] === '?') { re += '[^/]'; i += 1; }
+    else if (glob[i] === '{') { re += '(?:'; depth += 1; i += 1; }
+    else if (glob[i] === '}' && depth) { re += ')'; depth -= 1; i += 1; }
+    // A comma is only an alternation inside braces. Outside them it is a
+    // character in a filename, and files are named like that.
+    else if (glob[i] === ',' && depth) { re += '|'; i += 1; }
+    else { re += glob[i].replace(/[.+?^${}()|[\]\\]/, String.raw`\$&`); i += 1; }
+  }
+  // An unclosed brace is a typo, and a regex built from it would either throw
+  // here or quietly match the wrong thing. Say which glob, since the recipe that
+  // holds it may have a dozen.
+  if (depth) throw new Error(`glob has an unclosed { : ${glob}`);
   return new RegExp('^' + re + '$');
 }
 function matchesWatch(file, watchGlob) { return globToRegex(watchGlob).test(file); }

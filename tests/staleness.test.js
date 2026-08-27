@@ -4,6 +4,23 @@ const { makeTempRepo, write, commitAll } = require('./helpers');
 const M = require('../scripts/lib/model');
 const S = require('../scripts/staleness');
 
+// A recipe is written once and read by whichever sweep path is available, so the
+// built-in matcher has to understand what ripgrep understands. It did not
+// understand braces, and a real run lost every entry point in a repository whose
+// code lives in two top-level directories — silently, and reported as a probably
+// wrong recipe.
+test('matchesWatch handles the brace groups a recipe is written with', () => {
+  const S = require('../scripts/staleness');
+  assert.ok(S.matchesWatch('modules/orders/src/Http/routes.php', '{modules,packages,app}/**/*.php'));
+  assert.ok(S.matchesWatch('app/Console/Commands/Sync.php', '{app,internal}/Console/Commands/**/*.php'));
+  assert.ok(!S.matchesWatch('vendor/x/y.php', '{modules,app}/**/*.php'));
+  // Outside braces a comma is a character, and files are named with it.
+  assert.ok(S.matchesWatch('a,b/x.php', 'a,b/*.php'));
+  assert.ok(S.matchesWatch('app/Http/a1.php', 'app/Http/a?.php'));
+  // A typo, and a regex built from it would match something arbitrary instead.
+  assert.throws(() => S.matchesWatch('x', '{a,b'), /unclosed/);
+});
+
 test('matchesWatch handles * and **', () => {
   assert.ok(S.matchesWatch('app/Http/OrderController.php', 'app/Http/*.php'));
   assert.ok(S.matchesWatch('app/Domain/Order/Ship.php', 'app/Domain/**/*.php'));
