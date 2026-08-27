@@ -171,6 +171,19 @@ test('$root appears only where the preamble defines it', () => {
   }
 });
 
+// The first-run setup asks three things, and the language question is the one
+// that goes missing: it is a single paragraph, it has no script call to anchor
+// it, and every later run reads `language` out of a config the user was never
+// asked to fill. It vanished once already, in a restructuring, and nothing
+// failed.
+test('the first-run setup still asks which language to write in', () => {
+  const src = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  const setup = src.split('## First-run setup')[1];
+  assert.ok(setup, 'the first-run setup section is gone entirely');
+  assert.match(setup, /\*\*Language\.\*\*/,
+    'first-run setup no longer asks for a language, but config still carries one');
+});
+
 // The store is not beside the repository any more, so any path written as
 // `.archie/<something>` names a location that only exists in the single case.
 // The first version of this looked only for quoted shell paths, and missed two

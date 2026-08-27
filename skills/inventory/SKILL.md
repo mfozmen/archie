@@ -128,6 +128,11 @@ in. Do not re-ask about anything already in either list.
 
 ### Both cases
 
+**Language.** Which language should the narrative be written in? Guess a default
+from the READMEs `workspace.js` reported and offer it. Asked once for the whole
+set, not per repository — it is how this person reads, not a property of a
+checkout. Identifiers are never translated.
+
 **Scope inside a repository.** Within a repo you own, `scope.js` still narrows
 which directories the sweep reads. Offer it; take "the whole repository" when
 chosen. Scope is a convenience, not something to talk anyone into.
