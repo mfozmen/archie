@@ -65,7 +65,24 @@ to accept the inconvenience and document it.
 
 ## 4. Scope invariants
 
-- Read-only against the analyzed repo (Archie writes only under `.archie/`).
-- Single-repo boundary: outbound calls are labelled boxes, never followed (v1).
+- **Read-only against the analyzed repo.** In a workspace the store lives under the
+  workspace, so a change that writes into a repository Archie was only asked to read is
+  blocking. Inside a single repository the store is still `.archie/`.
+- **The trace boundary is locked**: a traced flow never follows an outbound call into
+  another system — outbound calls are labelled boxes at the edge.
+- **The analysis boundary is not.** Archie looks at as many repositories as the user says
+  are theirs, so "it read more than one repo" is not a finding.
 - The structural model remains the single source of truth; no view may carry content that
   is not in the model.
+
+## 4a. Other people's names (blocking)
+
+Archie reads files full of colleagues — `CODEOWNERS`, git history — and takes from them
+only what answers the question it was asked. **Teams may be named. Individuals are
+counted, never named and never emitted**, whether written as `@handle` or as a plain email
+address. This applies to anything a user or a page can see: proposals, rendered wiki text,
+terminal output, fixtures.
+
+It is listed separately from §1 because it is not about this repository's own hygiene: the
+names leak out of somebody *else's* repository, through Archie, into whatever the map gets
+pasted into.
