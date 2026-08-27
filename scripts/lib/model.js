@@ -351,6 +351,9 @@ module.exports = {
   // is written once at the top of the store. Reading it from the repository's
   // own store finds nothing and silently renders to the default instead.
   outputDir: (store, base, cfgStore) => {
+    // Say which store is missing rather than throwing out of path.join, where
+    // the caller sees a TypeError about `undefined` and nothing about why.
+    if (!cfgStore) throw new Error('outputDir needs the store the settings were written to');
     const out = readJson(dir(cfgStore, 'config.json'))?.output;
     return out ? path.join(base, out) : dir(store, 'wiki');
   },

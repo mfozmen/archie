@@ -136,3 +136,10 @@ test('a missing store file is reported at the path it was actually looked for', 
     `error names the wrong path: ${err.join('\n')}`);
 });
 
+
+// The whole bug was reading `output` from the wrong store, so a caller that
+// forgets to say which store it means should hear that, not a TypeError from
+// inside path.join naming a variable it never passed.
+test('outputDir says which store is missing rather than failing downstream', () => {
+  assert.throws(() => M.outputDir('/src/.archie', '/src'), /store the settings were written to/);
+});
