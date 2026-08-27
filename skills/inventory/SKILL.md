@@ -166,7 +166,9 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json 
 generated files out of everyone's way. Offer something browsable —
 `system-map/` under the workspace, or `docs/system-map/` in the single-repo
 case. A relative `output` resolves against the workspace when there is one, so
-in workspace mode it never lands inside a repository Archie only read.
+in workspace mode it never lands inside a repository Archie only read, and each
+repository's map goes in its own directory under it — one setting, one place to
+look, and no repository rendering over another's pages.
 
 Then write and store the answers:
 

@@ -27,8 +27,10 @@ it there, so the setting is accepted, echoed back, and silently never applied.
   for a whole-repository map.
 - **`output`** — where `wiki` renders to. Relative, and it resolves against the
   **workspace** when there is one, so a rendered map never lands inside a
-  repository Archie was only asked to read. In a single-repository run it
-  resolves against that repository, as before. Defaults to `wiki/` inside the
+  repository Archie was only asked to read, and each repository's map lands in
+  its own directory under it — the pages are named by kind, so without that the
+  second repository rendered would replace the first. In a single-repository run
+  it resolves against that repository, as before. Defaults to `wiki/` inside the
   store.
 
 ## Changing the scope

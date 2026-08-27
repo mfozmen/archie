@@ -342,21 +342,33 @@ module.exports = {
     : [],
   loadConfig: (store) => readJson(dir(store, 'config.json')),
   saveConfig: (store, c) => { validateConfig(c); writeJson(dir(store, 'config.json'), c); },
-  // Where `wiki` renders to. `base` is what a relative config.output resolves
-  // against — the repository today, the workspace once one is set. Defaults
-  // inside the store so a first run writes nothing anyone has to clean up;
-  // configurable because a map nobody browses is a map nobody reads.
+  // Where `wiki` renders to. Takes what paths() returns, whole: the answer needs
+  // the store, the workspace, and the repository at once, and three of those
+  // arriving as bare positional arguments is how one of them ends up being the
+  // wrong store.
   //
-  // `cfgStore` is separate from `store` because `output` is not one repository's
-  // setting: it is where this person wants their map, for the whole set, and it
-  // is written once at the top of the store. Reading it from the repository's
-  // own store finds nothing and silently renders to the default instead.
-  outputDir: (store, base, cfgStore) => {
+  // `base` is what a relative config.output resolves against — the repository
+  // today, the workspace once one is set. Defaults inside the store so a first
+  // run writes nothing anyone has to clean up; configurable because a map nobody
+  // browses is a map nobody reads.
+  //
+  // `configStore` is separate from `store` because `output` is not one
+  // repository's setting: it is where this person wants their map, for the whole
+  // set, and it is written once at the top of the store. Reading it from the
+  // repository's own store finds nothing and silently renders to the default.
+  //
+  // And because it is one setting for the whole set, every repository in that set
+  // resolves it to the same directory. The pages are named by kind, not by
+  // repository — index.md, open-questions.md — so the second repository rendered
+  // would replace the first, and look exactly like a re-render while doing it.
+  // Under a workspace the repository's own name goes on the end.
+  outputDir: ({ store, base, configStore, repo, workspace }) => {
     // Say which store is missing rather than throwing out of path.join, where
     // the caller sees a TypeError about `undefined` and nothing about why.
-    if (!cfgStore) throw new Error('outputDir needs the store the settings were written to');
-    const out = readJson(dir(cfgStore, 'config.json'))?.output;
-    return out ? path.join(base, out) : dir(store, 'wiki');
+    if (!configStore) throw new Error('outputDir needs the store the settings were written to');
+    const out = readJson(dir(configStore, 'config.json'))?.output;
+    if (!out) return dir(store, 'wiki');
+    return workspace ? path.join(base, out, path.basename(store)) : path.join(base, out);
   },
   loadRecipe: (store) => readJson(dir(store, 'recipe.json')),
   saveRecipe: (store, r) => { validateRecipe(r); writeJson(dir(store, 'recipe.json'), r); },

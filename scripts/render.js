@@ -268,7 +268,8 @@ function readMermaid(pluginRoot) {
 }
 
 function main(args) {
-  const { repo, store, base, configStore } = paths(args);
+  const p = paths(args);
+  const { repo, store, base } = p;
   const model = M.loadModel(store);
   if (!model) { console.error(`no ${path.join(store, 'model.json')} — run /archie:inventory`); return 1; }
   const { fingerprint } = require('./fingerprint');
@@ -276,7 +277,7 @@ function main(args) {
   const fp = fingerprint(repo);
   const scope = M.loadConfig(store)?.scope;
   const pages = renderMarkdownPages(model, flows, fp, scope);
-  const wiki = M.outputDir(store, base, configStore);
+  const wiki = M.outputDir(p);
   const out = path.join(wiki, 'md');
   fs.mkdirSync(out, { recursive: true });
   for (const [name, content] of pages) fs.writeFileSync(path.join(out, name), content);

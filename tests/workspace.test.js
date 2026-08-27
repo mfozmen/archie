@@ -88,8 +88,10 @@ test('a relative output resolves against the base it is given, not the store', (
   const store = M.storeFor(repo, workspace);
   const top = M.storeFor(workspace);
   M.saveConfig(top, { output: 'system-map' });
-  assert.strictEqual(M.outputDir(store, workspace, top), path.join(workspace, 'system-map'));
-  assert.strictEqual(M.outputDir(store, repo, top), path.join(repo, 'system-map'));
+  assert.strictEqual(M.outputDir({ store, base: workspace, configStore: top, repo, workspace }),
+    path.join(workspace, 'system-map', path.basename(store)));
+  assert.strictEqual(M.outputDir({ store, base: repo, configStore: top, repo }),
+    path.join(repo, 'system-map'));
 });
 
 test('with no configured output the wiki lands inside the store', () => {
@@ -97,7 +99,8 @@ test('with no configured output the wiki lands inside the store', () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
   const store = M.storeFor(repo, workspace);
   M.saveConfig(M.storeFor(workspace), {});
-  assert.strictEqual(M.outputDir(store, workspace, M.storeFor(workspace)), path.join(store, 'wiki'));
+  assert.strictEqual(M.outputDir({ store, base: workspace, configStore: M.storeFor(workspace), repo, workspace }),
+    path.join(store, 'wiki'));
 });
 
 // The unit test above proves outputDir() honours the base it is handed. This
@@ -122,7 +125,8 @@ test('render sends a configured output to the workspace, never into the repo', (
   const code = require('../scripts/render').main([repo, '--workspace', workspace]);
 
   assert.strictEqual(code, 0);
-  assert.ok(fs.existsSync(path.join(workspace, 'system-map', 'md')), 'wiki belongs in the workspace');
+  assert.ok(fs.existsSync(path.join(workspace, 'system-map', path.basename(store), 'md')),
+    'wiki belongs in the workspace, under this repository\'s name');
   assert.deepStrictEqual(fs.readdirSync(repo).sort(), before, 'the repository must be untouched');
 });
 
@@ -150,5 +154,30 @@ test('a missing store file is reported at the path it was actually looked for', 
 // forgets to say which store it means should hear that, not a TypeError from
 // inside path.join naming a variable it never passed.
 test('outputDir says which store is missing rather than failing downstream', () => {
-  assert.throws(() => M.outputDir('/src/.archie', '/src'), /store the settings were written to/);
+  assert.throws(() => M.outputDir({ store: '/src/.archie', base: '/src' }),
+    /store the settings were written to/);
+});
+
+// One output setting, one for the whole set, and every repository rendering
+// through it. Written to `<workspace>/system-map/md/index.md` by name, the second
+// repository silently replaces the first — the same collision `tmp/` is scoped
+// per repository to avoid, and with no error, because overwriting a file it
+// wrote itself looks exactly like re-rendering.
+test('two repositories sharing one configured output do not overwrite each other', () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
+  M.saveConfig(M.storeFor(workspace), { output: 'system-map', repos: [] });
+  const out = [];
+  for (const name of ['orders-api', 'billing-api']) {
+    const { root: repo } = makeTempRepo();
+    const store = M.storeFor(repo, workspace);
+    M.saveModel(store, { version: 1, unknowns: [], entries: [
+      { id: `http.GET./${name}`, kind: 'http', label: `GET /${name}`,
+        evidence: [{ file: 'routes.js', line: 1 }], coverage: 'none' }] });
+    assert.strictEqual(require('../scripts/render').main([repo, '--workspace', workspace]), 0);
+    out.push(M.outputDir({ store, base: workspace, configStore: M.storeFor(workspace), repo, workspace }));
+  }
+  assert.notStrictEqual(out[0], out[1], 'both repositories rendered to the same directory');
+  for (const dir of out) assert.ok(fs.existsSync(path.join(dir, 'md', 'index.md')), `${dir} was overwritten`);
+  assert.notStrictEqual(fs.readFileSync(path.join(out[0], 'md', 'index.md'), 'utf8'),
+    fs.readFileSync(path.join(out[1], 'md', 'index.md'), 'utf8'));
 });

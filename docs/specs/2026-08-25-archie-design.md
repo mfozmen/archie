@@ -250,7 +250,10 @@ question count (`--unknowns` lists them).
      scope says it is not a map of the whole system**.
   3. **Where the wiki is written** — defaults to `wiki/` inside the store. A relative path
      resolves against the workspace when there is one, so it never lands inside a repository
-     Archie was only asked to read. A map nobody browses is a map nobody reads.
+     Archie was only asked to read, and each repository's map goes in its own directory
+     under it: the setting is the set's, but the pages are named by kind, so a shared
+     directory would have each repository overwrite the last. A map nobody browses is a map
+     nobody reads.
 
   This is a widening of the original "ask one question" rule, made deliberately: the two
   added questions decide what the map is allowed to contain and where anyone will find it,
