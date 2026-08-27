@@ -91,8 +91,18 @@ test('scratch files are scoped to the repository', () => {
 // which is the one case nobody tests by hand. It is the exact failure moving the
 // store was meant to prevent, so it is checked mechanically rather than by
 // reading the prose carefully.
-const STORE_SCRIPTS = ['store', 'sweep', 'render', 'status', 'churn', 'staleness'];
+// Asked of the scripts rather than typed out here: a script touches the store
+// exactly when it calls paths() for one, and a hand-written list would answer
+// for whichever scripts existed the day it was written. `staleness` is in it and
+// no skill calls it today — that is a fact about the skills, and the day one
+// does, the call is already covered.
+const STORE_SCRIPTS = fs.readdirSync(path.join(root, 'scripts'))
+  .filter(n => n.endsWith('.js')
+    && /\bpaths\(/.test(fs.readFileSync(path.join(root, 'scripts', n), 'utf8')))
+  .map(n => n.replace(/\.js$/, ''));
 test('every store-touching call in every skill carries the workspace argument', () => {
+  assert.ok(STORE_SCRIPTS.includes('store') && STORE_SCRIPTS.length >= 5,
+    `store-touching scripts found: ${STORE_SCRIPTS.join(', ')} — the pattern has gone stale`);
   for (const s of SURFACES) {
     const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
     for (const line of src.split('\n')) {

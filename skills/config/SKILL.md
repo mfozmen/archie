@@ -1,9 +1,9 @@
 ---
 name: config
-description: Change Archie's settings for this repository — language, scope and output directory. Use when someone wants to change how Archie behaves here, most often the language the narrative is written in.
+description: Change Archie's settings — the language, where the map is written, and what each repository's sweep covers. Use when someone wants to change how Archie behaves, most often the language the narrative is written in.
 ---
 
-# config — settings for this repository
+# config — settings
 
 Follow the preamble in the `inventory` skill (repo root, config, language rules).
 
