@@ -141,8 +141,9 @@ files — churn ranking is free from git and points at the heart of the system),
   `/archie:recipe "<hint>"` — the escape hatch for home-grown routers.
 - **Step 2 — sweep (ripgrep, zero tokens).** Every probe runs as `rg --json`. Comment-line
   hits are filtered here where possible. Per-probe hit counts are reported; **a probe with 0
-  hits is surfaced as a suspicion** ("recipe may be wrong — fix with /archie:recipe"),
-  never passed silently.
+  hits is surfaced as a suspicion**, never passed silently — and it names which half of the
+  probe found nothing, since a glob that matched no file never tried its pattern and saying
+  otherwise is a claim past what was measured.
 - **Step 3 — verify + enrich (LLM, schema-bound).** Hits become entry-point records: is it
   real, its label, the first handler stop, its `watch[]`. **Threshold rule:** under ~150
   hits, a single worker handles all; above, split on directory boundaries and fan out in

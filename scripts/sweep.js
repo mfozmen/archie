@@ -45,8 +45,9 @@ function grepProbe(root, probe, files) {
 // filtering; `git ls-files` already decided what counts.
 // rg exit 1 means "no match" — a real, honest zero. ANY other non-zero (2 = bad
 // regex, argv too long, rg crash) is a broken tool, and reporting it as 0 hits
-// would slander the recipe: the CLI would print "recipe may be wrong" when the
-// recipe was fine. Same rule as staleness: unprovable is never "fine".
+// would slander the recipe: the CLI would say the pattern found nothing in the
+// files it was given, when it never ran. Same rule as staleness: unprovable is
+// never "fine".
 function rgProbe(root, probe, files, maxArgvBytes) {
   const hits = [];
   // Chunks are path-ordered and --sort path orders within a chunk, so the
@@ -90,8 +91,10 @@ function sweep(root, recipe, opts = {}) {
     const h = matched.length === 0 ? []
       : useRg ? rgProbe(root, probe, matched, opts.maxArgvBytes) : grepProbe(root, probe, matched);
     hits.push(...h);
-    counts.push({ ...probe, hits: h.length });
-    if (h.length === 0) zeroProbes.push(probe);
+    counts.push({ ...probe, hits: h.length, files: matched.length });
+    // A zero is three different facts and the sweep knows which one it holds.
+    // Reported as one, it sent a real run to rewrite a recipe that was correct.
+    if (h.length === 0) zeroProbes.push({ ...probe, files: matched.length });
   }
   // Configured, not "it happened to exclude something". A scope that excludes
   // nothing today is still the reason a zero means "not in your area".
@@ -105,11 +108,25 @@ function main(args) {
   fs.mkdirSync(store, { recursive: true });
   fs.writeFileSync(path.join(store, 'sweep.json'), JSON.stringify(res.hits, null, 2) + '\n');
   for (const c of res.counts) console.log(`${c.kind.padEnd(10)} ${String(c.hits).padStart(5)}  ${c.glob} =~ ${c.pattern}`);
-  // Under a scope, zero hits usually means "not in your area", not "bad recipe".
-  // Sending someone to fix a recipe that is fine wastes the one escape hatch.
-  for (const z of res.zeroProbes) console.log(res.scoped
-    ? `⚠ 0 hits for ${z.kind} probe within the configured scope — either it does not exist in your area, or the recipe is wrong`
-    : `⚠ 0 hits for ${z.kind} probe — recipe may be wrong; fix with /archie:recipe`);
+  // Which half of the probe found nothing is a fact, not a guess, and the two
+  // halves send someone to different places. A glob that matched no file is not
+  // evidence about the pattern at all — saying "the recipe may be wrong" there
+  // is a claim past what was measured, and it cost a real run an afternoon.
+  // Under a scope there is a third reading, and it is the likeliest one.
+  for (const z of res.zeroProbes) console.log(
+    z.files === 0
+      ? `⚠ 0 files match the ${z.kind} glob ${z.glob}${res.scoped ? ' within the configured scope' : ''}`
+        + ' — the pattern was never tried; '
+        // A scope is a reason for a glob to match nothing that has nothing to do
+        // with the glob. Telling someone to fix one that is fine is the same
+        // misdirection as blaming the pattern, one level up.
+        + (res.scoped ? 'either the scope excludes that area, or the glob is wrong'
+          : 'fix the glob with /archie:recipe')
+      : res.scoped
+        ? `⚠ 0 hits for ${z.kind} in the ${z.files} file(s) its glob matches within the configured scope`
+          + ' — either it does not exist in your area, or the pattern is wrong'
+        : `⚠ 0 hits for ${z.kind} in the ${z.files} file(s) its glob matches`
+          + ' — the pattern may be wrong; fix it with /archie:recipe');
   console.log(`${res.hits.length} candidate hits → ${path.join(store, 'sweep.json')}`);
   return 0;
 }
