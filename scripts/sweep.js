@@ -45,8 +45,9 @@ function grepProbe(root, probe, files) {
 // filtering; `git ls-files` already decided what counts.
 // rg exit 1 means "no match" — a real, honest zero. ANY other non-zero (2 = bad
 // regex, argv too long, rg crash) is a broken tool, and reporting it as 0 hits
-// would slander the recipe: the CLI would print "recipe may be wrong" when the
-// recipe was fine. Same rule as staleness: unprovable is never "fine".
+// would slander the recipe: the CLI would say the pattern found nothing in the
+// files it was given, when it never ran. Same rule as staleness: unprovable is
+// never "fine".
 function rgProbe(root, probe, files, maxArgvBytes) {
   const hits = [];
   // Chunks are path-ordered and --sort path orders within a chunk, so the
