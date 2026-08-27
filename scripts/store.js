@@ -20,9 +20,13 @@ const USAGE = `usage: store.js <root> <what> <file.json> [--workspace <dir>] [--
   merge-inventory   merge a discovered entry array into the existing model,
                     preserving what explain proved; prints {added, kept, disappeared}`;
 
+// The four that only a set has: a single repository is not a set of one, it has
+// no responsibility set at all. Their presence is what identifies a config as
+// the set's, since `language` and `output` live in either.
+const SET_ONLY = ['workspace', 'handle', 'repos', 'declined'];
 // Everything a config can hold except `scope`, which is the one setting that is
 // one repository's own.
-const SET_WIDE = ['workspace', 'handle', 'repos', 'declined', 'language', 'output'];
+const SET_WIDE = [...SET_ONLY, 'language', 'output'];
 
 function main(args) {
   const { store, workspace, rest } = paths(args);
@@ -66,7 +70,7 @@ function main(args) {
         const lost = SET_WIDE.filter(k => k in (M.loadConfig(store) || {}) && !(k in data));
         if (lost.length) return die(`${file}: this would drop ${lost.join(', ')} from the stored `
           + `config — a config write replaces the file, so write back what you read, whole`);
-        if (!workspace && 'scope' in data && (data.repos || data.workspace))
+        if (!workspace && 'scope' in data && SET_ONLY.some(k => k in data))
           return die(`${file}: scope belongs to the repository it scopes, not to the set — `
             + `write it with that repository as the root and --workspace`);
         const set = SET_WIDE.filter(k => k in data);

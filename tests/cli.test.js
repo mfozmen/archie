@@ -228,6 +228,7 @@ test('store: a config write that would drop the responsibility set is refused', 
   assert.strictEqual(m.code, 1);
   assert.match(m.err, /scope belongs to the repository it scopes/);
 
+
 });
 
 // The loss guard refuses a write that forgot a setting, so removing one on
@@ -247,6 +248,22 @@ test('store: a null unsets a setting the loss guard would otherwise protect', ()
   const c = loadConfig(path.join(root, '.archie'));
   assert.strictEqual(c.output, undefined, 'null means remove it, not store a null');
   assert.strictEqual(c.language, 'en');
+});
+
+// Any one of the four says whose config this is: a single repository is not a set
+// of one, it has no responsibility set at all. A set that has been asked nothing
+// yet still has a `declined` the moment the first answer is no, and it is no less
+// the set's config for having no repos in it.
+test('store: any set-only key marks the config as the set\'s, not one repository\'s', () => {
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  for (const only of [{ workspace: '/src' }, { handle: '@you' }, { repos: [] }, { declined: ['b'] }]) {
+    const { root } = makeTempRepo();
+    const p = path.join(root, 'c.json');
+    fs.writeFileSync(p, JSON.stringify({ ...only, scope: { paths: ['app/**'] } }));
+    assert.match(capture(() => main([root, 'config', p])).err,
+      /scope belongs to the repository it scopes/, `${Object.keys(only)[0]} alone must identify the set`);
+  }
 });
 
 // A single-repository config is both levels in one file, so a scope in it is
