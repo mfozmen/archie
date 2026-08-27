@@ -49,7 +49,7 @@ Read the current config, apply the user's request conversationally, show what wi
 change, then write it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.json
 ```
 
 ## Changing the language is a translation pass, not a re-trace

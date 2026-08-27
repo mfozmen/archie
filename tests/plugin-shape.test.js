@@ -53,6 +53,7 @@ test('the focus hint is documented as steering, never as evidence', () => {
 // Every write to .archie/ goes through store.js, from a file. Inline `node -e`
 // with JSON in argv breaks on the first apostrophe in a route label or a claim.
 test('no skill writes to .archie by hand', () => {
+  let seen = 0;
   for (const s of SURFACES) {
     const skill = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
     assert.ok(!/node -e/.test(skill), s + ' must not inline a node -e writer');
@@ -60,10 +61,21 @@ test('no skill writes to .archie by hand', () => {
     // data on a command line again, which is the thing store.js exists to stop.
     for (const m of skill.matchAll(/node -p [^\n]+/g))
       assert.ok(!/save/i.test(m[0]), `${s}: node -p must not write (${m[0].slice(0, 60)})`);
-    for (const m of skill.matchAll(/store\.js"? "\$root" (\S+)/g))
+    // Matched on the variable NAME, not on one particular name. The previous
+    // version looked for "$root", every skill was renamed to "$repo", and this
+    // loop then matched nothing at all — a check that had stopped checking and
+    // stayed green for it. The count below is the part that makes that visible.
+    let checked = 0;
+    for (const m of skill.matchAll(/store\.js"? "\$\w+" (\S+)/g)) {
+      checked++;
       assert.ok(['recipe', 'config', 'model', 'flow', 'merge-inventory'].includes(m[1]),
         `${s}: store.js target "${m[1]}" is not one store.js accepts`);
+    }
+    seen += checked;
   }
+  // A silent test is worse than a failing one: it reports success for work it
+  // never did. If a rename ever empties the pattern again, this is what says so.
+  assert.ok(seen >= 5, `store.js call sites found: ${seen} — the pattern has gone stale`);
 });
 
 // A fixed /tmp path collides between two sessions working on two repositories.
@@ -86,6 +98,17 @@ test('every store-touching call in every skill carries the workspace argument', 
     for (const line of src.split('\n')) {
       const m = line.match(/scripts\/(\w+)\.js"([^\n]*)/);
       if (!m || !STORE_SCRIPTS.includes(m[1])) continue;
+      // The config is the one thing that is NOT one repository's data — it
+      // holds the responsibility set, which spans them — so it is addressed by
+      // the workspace itself. Passing --workspace here is what sends it down
+      // into repos/<name>/, where the first-run check will never find it and
+      // every run asks the questions again.
+      if (/ config /.test(m[2])) {
+        assert.ok(!m[2].includes('${WS[@]}'),
+          `${s}: the config write must NOT carry "\${WS[@]}" — ${line.trim()}`);
+        assert.match(m[2], /"\$cfg"/, `${s}: the config write must target $cfg — ${line.trim()}`);
+        continue;
+      }
       assert.ok(m[2].includes('${WS[@]}'), `${s}: ${m[1]}.js call is missing "\${WS[@]}" — ${line.trim()}`);
       assert.ok(!m[2].includes('"$root"'), `${s}: ${m[1]}.js still takes $root — ${line.trim()}`);
     }

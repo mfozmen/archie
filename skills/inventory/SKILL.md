@@ -27,26 +27,48 @@ root="$(git rev-parse --show-toplevel 2>/dev/null)"
   ```bash
   ws="$PWD"; WS=(--workspace "$ws")
   ```
-  There is no single `$repo` here. The rest of this skill is written for **one**
-  repository, and in a workspace you run it once per repository in the set,
-  setting `repo="$ws/<name>"` each time. Report per repository as you go rather
-  than only at the end: on a set of any size, a silent run looks like a hung one.
+  There is no single `$repo` here yet. The rest of this skill is written for
+  **one** repository, and in a workspace you run it once per repository in the
+  set. Report per repository as you go rather than only at the end: on a set of
+  any size, a silent run looks like a hung one.
 
-`"${WS[@]}"` goes on **every** script call from here on. It is empty in the
-single case, so one line works for both and neither is a special case.
-
-Scratch JSON goes in `$tmp`, which is that repository's own store — never a
-shared path, or two repositories in one workspace would overwrite each other's
-half-written files:
+**Per repository**, before anything that touches that repo's data — and not
+before, since `$repo` does not exist until here:
 
 ```bash
+repo="$ws/<name>"       # in the single case this was already set above
 tmp="$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$repo', '${ws:-}')")/tmp"
 mkdir -p "$tmp"
 ```
 
-**2. Config.** `$ws/.archie/config.json` (or `$repo/.archie/config.json` in the
-single case). Missing → run the **first-run setup** below. It decides what the
-map is allowed to contain, so ask; do not pick for the user.
+`$tmp` is that repository's own store and never a shared path: two repositories
+writing scratch to one directory would overwrite each other's half-written
+files.
+
+`"${WS[@]}"` goes on **every** script call that reads or writes one
+repository's data — model, flow, recipe, sweep. It is empty in the single case,
+so one line works for both and neither is a special case.
+
+**Config is the exception, and getting it wrong costs the user the whole
+feature.** The config is not one repository's data: it holds the responsibility
+set, which spans them. It lives at the top of the store, so it is addressed by
+the workspace itself — with **no** `--workspace`, because that flag is what
+sends a path down into `repos/<name>/`.
+
+```bash
+cfg="${ws:-$root}"      # the workspace, or the single repository
+cfgtmp="$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$cfg')")/tmp"
+mkdir -p "$cfgtmp"
+```
+
+Write it with `"$cfg"` and no `"${WS[@]}"`. Pass the flag here and the set lands
+inside one repository's store while the check below looks at the top — so first
+run never finds it, and the whole point of `declined[]` (never asking twice) is
+lost silently.
+
+**2. Config.** `$cfg/.archie/config.json`. Missing → run the **first-run setup**
+below. It decides what the map is allowed to contain, so ask; do not pick for
+the user.
 
 **3. Language.** Narrative text is written in the configured language.
 Identifiers — file paths, route labels, class names, entry-point ids — are
@@ -128,7 +150,7 @@ Then write and store the answers:
 ```
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.json
 ```
 
 Omit `scope` entirely for a whole-repository map — an empty `paths` and no
