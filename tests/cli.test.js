@@ -219,11 +219,32 @@ test('store: a config write that would drop the responsibility set is refused', 
   fs.writeFileSync(p, JSON.stringify({ language: 'tr', repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
   assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
 
-  // Dropping a scope is not a loss — absence is how a scope is removed.
-  fs.writeFileSync(p, JSON.stringify({ language: 'tr', scope: { paths: ['app/**'] }, repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+  // The mirror mistake: a scope in the config that carries the responsibility
+  // set. The flag cannot catch this one — a single-repository config holds both
+  // levels — but the set itself says which config this is.
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', workspace: '/src',
+    repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'], scope: { paths: ['app/**'] } }));
+  const m = capture(() => main([root, 'config', p]));
+  assert.strictEqual(m.code, 1);
+  assert.match(m.err, /scope belongs to the repository it scopes/);
+
+});
+
+// A single-repository config is both levels in one file, so a scope in it is
+// right — and removing one is done by leaving it out, which the loss guard must
+// not read as damage.
+test('store: a scope in a single-repository config is written, and removed by absence', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', scope: { label: 'Orders', paths: ['app/**'] } }));
   assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
-  fs.writeFileSync(p, JSON.stringify({ language: 'tr', repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
   assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+  assert.strictEqual(require('../scripts/lib/model').loadConfig(path.join(root, '.archie')).scope, undefined);
 });
 
 test('render says so when the vendored bundle is missing', () => {

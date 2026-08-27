@@ -44,10 +44,12 @@ function main(args) {
         // then read by nothing. Refuse it where the mistake is made rather than
         // leaving someone to notice their setting never took effect.
         //
-        // The mirror check — a scope written to the top — is missing because it
-        // cannot exist. In a single-repository run one file holds both levels
-        // and the two writes are the same command, so refusing a scope without
-        // --workspace would refuse every correct one.
+        // The mirror direction needs a different question, because the flag
+        // cannot answer it: in a single-repository run one file holds both
+        // levels and a scope in it is right. What settles it is the config
+        // itself — one carrying the responsibility set is the set's, and a
+        // scope there scopes nothing, since every sweep reads its own
+        // repository's store.
         // A config write replaces the file, and the set-wide one now holds the
         // responsibility set. "Change the language to Turkish", written back as
         // just a language, would take repos[] and declined[] with it — and the
@@ -60,6 +62,9 @@ function main(args) {
         const lost = SET_WIDE.filter(k => k in (M.loadConfig(store) || {}) && !(k in data));
         if (lost.length) return die(`${file}: this would drop ${lost.join(', ')} from the stored `
           + `config — a config write replaces the file, so write back what you read, whole`);
+        if (!workspace && 'scope' in data && (data.repos || data.workspace))
+          return die(`${file}: scope belongs to the repository it scopes, not to the set — `
+            + `write it with that repository as the root and --workspace`);
         const set = SET_WIDE.filter(k => k in data);
         if (workspace && set.length) return die(`${file}: ${set.join(', ')} `
           + `${set.length > 1 ? 'belong' : 'belongs'} to the whole set, not to one repository — `
