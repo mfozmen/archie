@@ -313,8 +313,8 @@ Two entries moved off this list rather than being delivered. **Multi-repo flow t
 out and always will: it is the trace boundary above, which is locked. What is coming is not
 tracing across repositories but *knowing about* several — a different thing that the old wording
 conflated. **User-level config** was listed as "defaults", a convenience nobody needed; the
-responsibility set that replaces it is not a default but the one piece of state that cannot live
-in any single repository. See #26.
+responsibility set that replaced it is not a default but the one piece of state that cannot live
+in any single repository, which is why it sits at the top of the store (§3).
 
 ## 8. Known limits (contract, not embarrassment)
 
