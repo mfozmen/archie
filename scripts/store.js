@@ -48,6 +48,18 @@ function main(args) {
         // cannot exist. In a single-repository run one file holds both levels
         // and the two writes are the same command, so refusing a scope without
         // --workspace would refuse every correct one.
+        // A config write replaces the file, and the set-wide one now holds the
+        // responsibility set. "Change the language to Turkish", written back as
+        // just a language, would take repos[] and declined[] with it — and the
+        // whole point of declined[] is that a question is never asked twice.
+        // Losing it has no error and no symptom until the setup starts asking
+        // again about repositories the user already said were not theirs.
+        //
+        // Only the set-wide keys: dropping `scope` is how a scope is removed,
+        // which is a real thing to want and says so by being absent.
+        const lost = SET_WIDE.filter(k => k in (M.loadConfig(store) || {}) && !(k in data));
+        if (lost.length) return die(`${file}: this would drop ${lost.join(', ')} from the stored `
+          + `config — a config write replaces the file, so write back what you read, whole`);
         const set = SET_WIDE.filter(k => k in data);
         if (workspace && set.length) return die(`${file}: ${set.join(', ')} `
           + `${set.length > 1 ? 'belong' : 'belongs'} to the whole set, not to one repository — `

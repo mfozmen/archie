@@ -61,7 +61,11 @@ the user remove them.
 ## Changing a setting
 
 Read the current config, apply the user's request conversationally, show what will
-change, then write it back to the level it came from. Which of the two lines you
+change, then write **the whole object** back to the level it came from — the write
+replaces the file, and the top of the store is where the responsibility set lives,
+so a language change sent back as only a language takes `repos[]` and `declined[]`
+with it. `store.js` refuses that, but the fix is to round-trip what you read, not
+to argue with the error. Which of the two lines you
 run is the whole decision, so pick it by the setting, not by which one is above:
 
 ```bash

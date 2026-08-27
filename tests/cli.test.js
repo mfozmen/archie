@@ -195,6 +195,37 @@ test('store: the set\'s settings are refused when written to one repository', ()
   assert.strictEqual(capture(() => main([ws, 'config', p])).code, 0);
 });
 
+// A config write replaces the file, so "change the language" written back as a
+// language is how the responsibility set disappears — with no error, and no
+// symptom until the setup starts asking again about repositories the user
+// already declined. That is the one thing declined[] exists to prevent.
+test('store: a config write that would drop the responsibility set is refused', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'en', repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
+  const r = capture(() => main([root, 'config', p]));
+  assert.strictEqual(r.code, 1);
+  assert.match(r.err, /would drop repos, declined/);
+  assert.deepStrictEqual(require('../scripts/lib/model').loadConfig(path.join(root, '.archie')).declined, ['b'],
+    'the stored config must survive a refused write');
+
+  // Round-tripped whole, the same change goes through.
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+
+  // Dropping a scope is not a loss — absence is how a scope is removed.
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', scope: { paths: ['app/**'] }, repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+});
+
 test('render says so when the vendored bundle is missing', () => {
   const { root } = makeTempRepo();
   const { readMermaid } = require('../scripts/render');
