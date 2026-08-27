@@ -53,6 +53,7 @@ test('the focus hint is documented as steering, never as evidence', () => {
 // Every write to .archie/ goes through store.js, from a file. Inline `node -e`
 // with JSON in argv breaks on the first apostrophe in a route label or a claim.
 test('no skill writes to .archie by hand', () => {
+  let seen = 0;
   for (const s of SURFACES) {
     const skill = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
     assert.ok(!/node -e/.test(skill), s + ' must not inline a node -e writer');
@@ -60,10 +61,21 @@ test('no skill writes to .archie by hand', () => {
     // data on a command line again, which is the thing store.js exists to stop.
     for (const m of skill.matchAll(/node -p [^\n]+/g))
       assert.ok(!/save/i.test(m[0]), `${s}: node -p must not write (${m[0].slice(0, 60)})`);
-    for (const m of skill.matchAll(/store\.js"? "\$root" (\S+)/g))
+    // Matched on the variable NAME, not on one particular name. The previous
+    // version looked for "$root", every skill was renamed to "$repo", and this
+    // loop then matched nothing at all — a check that had stopped checking and
+    // stayed green for it. The count below is the part that makes that visible.
+    let checked = 0;
+    for (const m of skill.matchAll(/store\.js"? "\$\w+" (\S+)/g)) {
+      checked++;
       assert.ok(['recipe', 'config', 'model', 'flow', 'merge-inventory'].includes(m[1]),
         `${s}: store.js target "${m[1]}" is not one store.js accepts`);
+    }
+    seen += checked;
   }
+  // A silent test is worse than a failing one: it reports success for work it
+  // never did. If a rename ever empties the pattern again, this is what says so.
+  assert.ok(seen >= 5, `store.js call sites found: ${seen} — the pattern has gone stale`);
 });
 
 // A fixed /tmp path collides between two sessions working on two repositories.
@@ -71,5 +83,135 @@ test('scratch files are scoped to the repository', () => {
   for (const s of SURFACES) {
     const skill = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
     assert.ok(!/\/tmp\/archie/.test(skill), s + ' must not use a fixed /tmp path');
+  }
+});
+
+// A store-touching script call that forgets "${WS[@]}" writes into the analyzed
+// repository instead of the workspace — silently, and only in workspace mode,
+// which is the one case nobody tests by hand. It is the exact failure moving the
+// store was meant to prevent, so it is checked mechanically rather than by
+// reading the prose carefully.
+// Asked of the scripts rather than typed out here: a script touches the store
+// exactly when it calls paths() for one, and a hand-written list would answer
+// for whichever scripts existed the day it was written. `staleness` is in it and
+// no skill calls it today — that is a fact about the skills, and the day one
+// does, the call is already covered.
+const STORE_SCRIPTS = fs.readdirSync(path.join(root, 'scripts'))
+  .filter(n => n.endsWith('.js')
+    && /\bpaths\(/.test(fs.readFileSync(path.join(root, 'scripts', n), 'utf8')))
+  .map(n => n.replace(/\.js$/, ''));
+test('every store-touching call in every skill carries the workspace argument', () => {
+  assert.ok(STORE_SCRIPTS.includes('store') && STORE_SCRIPTS.length >= 5,
+    `store-touching scripts found: ${STORE_SCRIPTS.join(', ')} — the pattern has gone stale`);
+  for (const s of SURFACES) {
+    const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    for (const line of src.split('\n')) {
+      const m = line.match(/scripts\/(\w+)\.js"([^\n]*)/);
+      if (!m || !STORE_SCRIPTS.includes(m[1])) continue;
+      // Config is written at two levels and the flag is what chooses between
+      // them, so a config write is checked by which one it says it is for. The
+      // set — which repositories are yours, the language, the output — is not
+      // any one repository's, so it goes to "$cfg" with no --workspace; pass the
+      // flag there and it lands in repos/<name>/, where the first-run check
+      // never looks and every run asks the questions again. A scope is one
+      // repository's own and goes to "$repo" WITH the flag; drop it there and
+      // nothing reads the scope, so the sweep quietly covers the whole repo.
+      if (/ config /.test(m[2])) {
+        const forTheSet = m[2].includes('"$cfg"');
+        assert.ok(forTheSet || m[2].includes('"$repo"'),
+          `${s}: a config write must target $cfg or $repo — ${line.trim()}`);
+        assert.strictEqual(m[2].includes('${WS[@]}'), !forTheSet,
+          `${s}: config write for ${forTheSet ? 'the set must NOT' : 'one repository must'} `
+          + `carry "\${WS[@]}" — ${line.trim()}`);
+        continue;
+      }
+      assert.ok(m[2].includes('${WS[@]}'), `${s}: ${m[1]}.js call is missing "\${WS[@]}" — ${line.trim()}`);
+      assert.ok(!m[2].includes('"$root"'), `${s}: ${m[1]}.js still takes $root — ${line.trim()}`);
+    }
+  }
+});
+
+// The preamble is the only place that decides where Archie writes, so the claim
+// the whole workspace design rests on has to survive an edit to it.
+test('the preamble promises that analyzed repositories are not written to', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  assert.match(pre, /never\s+written\s+to/i);
+  assert.match(pre, /WS=\(--workspace/, 'the workspace argument must be defined in the preamble');
+  assert.match(pre, /WS=\(\)/, 'the single-repository case must define it empty, not omit it');
+});
+
+// Both discovery signals undercount by construction — you can be responsible for
+// a repository you never committed to, and most repos name no team at all. The
+// step that repairs that reads like a confirmation prompt, so it says in the
+// prompt itself that it is not one.
+test('asking what is missing is marked as load-bearing, not a courtesy', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  assert.match(pre, /not a politeness step|must not be\s*\n?trimmed/i);
+  assert.match(pre, /undercount/i, 'the reason must be stated, or the rule is arbitrary');
+});
+
+// A stored "no" is there to stop a repeated question and nothing else. Written
+// loosely it reads like a verdict on ownership, which Archie has no evidence for.
+test('declined is described as a memory of the asking, not a claim about ownership', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  assert.match(pre, /not asked twice|same\s+question is not asked/i);
+  assert.match(pre, /not permanent|never a claim about whose/i);
+});
+
+// Every skill uses $repo and $tmp in its commands. The preamble is the only
+// place either is defined, and a command referring to an unset variable does not
+// fail loudly — it writes to a path built from an empty string.
+test('the preamble defines every variable the skills go on to use', () => {
+  const pre = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  for (const v of ['repo=', 'ws=', 'tmp=', 'WS=']) assert.ok(pre.includes(v), `preamble never sets ${v}`);
+  // The workspace case has no single repository, so it has to say what $repo
+  // means there rather than leaving it to be guessed from the single-repo line.
+  assert.match(pre, /once per repository|repo="\$ws\//,
+    'the preamble must say what $repo is when there is a workspace');
+});
+
+// $root is what `git rev-parse --show-toplevel` printed, and it is only set on
+// the single-repository branch of the preamble. Anywhere else it is empty in a
+// workspace, so a command using it runs against the wrong directory or none at
+// all. Four such uses survived a rename in one PR by not being script calls —
+// they were `git -C "$root"` and a raw `cat "$root/.archie/..."` — which is why
+// this looks for the variable rather than for a shape of command.
+test('$root appears only where the preamble defines it', () => {
+  for (const s of SURFACES) {
+    const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    src.split('\n').forEach((line, i) => {
+      if (!line.includes('$root')) return;
+      const inPreamble = s === 'inventory' && /repo="\$root"|cfg="\$\{ws:-\$root\}"/.test(line);
+      assert.ok(inPreamble, `${s}:${i + 1} uses $root outside the preamble — ${line.trim()}`);
+    });
+  }
+});
+
+// The first-run setup asks three things, and the language question is the one
+// that goes missing: it is a single paragraph, it has no script call to anchor
+// it, and every later run reads `language` out of a config the user was never
+// asked to fill. It vanished once already, in a restructuring, and nothing
+// failed.
+test('the first-run setup still asks which language to write in', () => {
+  const src = fs.readFileSync(path.join(root, 'skills', 'inventory', 'SKILL.md'), 'utf8');
+  const setup = src.split('## First-run setup')[1];
+  assert.ok(setup, 'the first-run setup section is gone entirely');
+  assert.match(setup, /\*\*Language\.\*\*/,
+    'first-run setup no longer asks for a language, but config still carries one');
+});
+
+// The store is not beside the repository any more, so any path written as
+// `.archie/<something>` names a location that only exists in the single case.
+// The first version of this looked only for quoted shell paths, and missed two
+// stale lines of prose in one skill that were wrong in exactly the same way —
+// a reader follows a sentence as readily as a command. So: no member of the
+// store is addressed by that name at all, in code or in text. `$repo/.archie`
+// with nothing after it is left alone; that is the preamble explaining the
+// single case, not a path anything reads.
+test('no skill names a path inside .archie', () => {
+  for (const s of SURFACES) {
+    const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    for (const m of src.matchAll(/\.archie\/\S+/g))
+      assert.fail(`${s}: store path built by hand — ${m[0]}. Ask storeFor() instead.`);
   }
 });

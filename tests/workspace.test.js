@@ -59,6 +59,15 @@ test('--store overrides the default, and is stripped from the positional argumen
   assert.deepStrictEqual(r.rest, ['/src/orders-api', '--unknowns']);
 });
 
+// Given both, they answer the same question differently. `--store` is the more
+// specific answer — a directory, named outright — so it wins for both levels
+// rather than leaving the config somewhere the caller never mentioned.
+test('an explicit --store answers for both levels, workspace or not', () => {
+  const r = paths(['/src/orders-api', '--store', '/tmp/s', '--workspace', '/src']);
+  assert.strictEqual(r.store, '/tmp/s');
+  assert.strictEqual(r.configStore, '/tmp/s');
+});
+
 test('with no --store the repository is its own store, as it has always been', () => {
   const r = paths(['/src/orders-api']);
   assert.strictEqual(r.store, path.join('/src/orders-api', '.archie'));
@@ -77,28 +86,37 @@ test('a relative output resolves against the base it is given, not the store', (
   const { root: repo } = makeTempRepo();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
   const store = M.storeFor(repo, workspace);
-  M.saveConfig(store, { output: 'system-map' });
-  assert.strictEqual(M.outputDir(store, workspace), path.join(workspace, 'system-map'));
-  assert.strictEqual(M.outputDir(store, repo), path.join(repo, 'system-map'));
+  const top = M.storeFor(workspace);
+  M.saveConfig(top, { output: 'system-map' });
+  assert.strictEqual(M.outputDir({ store, base: workspace, configStore: top, repo, workspace }),
+    path.join(workspace, 'system-map', path.basename(store)));
+  assert.strictEqual(M.outputDir({ store, base: repo, configStore: top, repo }),
+    path.join(repo, 'system-map'));
 });
 
 test('with no configured output the wiki lands inside the store', () => {
   const { root: repo } = makeTempRepo();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
   const store = M.storeFor(repo, workspace);
-  M.saveConfig(store, {});
-  assert.strictEqual(M.outputDir(store, workspace), path.join(store, 'wiki'));
+  M.saveConfig(M.storeFor(workspace), {});
+  assert.strictEqual(M.outputDir({ store, base: workspace, configStore: M.storeFor(workspace), repo, workspace }),
+    path.join(store, 'wiki'));
 });
 
 // The unit test above proves outputDir() honours the base it is handed. This
 // one proves render's main() hands it the right one — which is where the bug
 // would actually live, and where a wiki configured with a relative output would
 // otherwise be written straight back into the repository Archie only read.
+//
+// It writes the setting where the setup writes it: the top of the store, not the
+// repository's own. Written to the repository's store, as this test used to do,
+// it passed while every real run ignored the setting entirely — render was
+// reading a file the setup never wrote.
 test('render sends a configured output to the workspace, never into the repo', () => {
   const { root: repo } = makeTempRepo();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
   const store = M.storeFor(repo, workspace);
-  M.saveConfig(store, { output: 'system-map' });
+  M.saveConfig(M.storeFor(workspace), { output: 'system-map' });
   M.saveModel(store, { version: 1, unknowns: [], entries: [
     { id: 'http.GET./x', kind: 'http', label: 'GET /x',
       evidence: [{ file: 'routes.js', line: 1 }], coverage: 'none' }] });
@@ -107,7 +125,8 @@ test('render sends a configured output to the workspace, never into the repo', (
   const code = require('../scripts/render').main([repo, '--workspace', workspace]);
 
   assert.strictEqual(code, 0);
-  assert.ok(fs.existsSync(path.join(workspace, 'system-map', 'md')), 'wiki belongs in the workspace');
+  assert.ok(fs.existsSync(path.join(workspace, 'system-map', path.basename(store), 'md')),
+    'wiki belongs in the workspace, under this repository\'s name');
   assert.deepStrictEqual(fs.readdirSync(repo).sort(), before, 'the repository must be untouched');
 });
 
@@ -128,4 +147,37 @@ test('a missing store file is reported at the path it was actually looked for', 
   assert.strictEqual(code, 1);
   assert.ok(err.join('\n').includes(path.join(store, 'model.json')),
     `error names the wrong path: ${err.join('\n')}`);
+});
+
+
+// The whole bug was reading `output` from the wrong store, so a caller that
+// forgets to say which store it means should hear that, not a TypeError from
+// inside path.join naming a variable it never passed.
+test('outputDir says which store is missing rather than failing downstream', () => {
+  assert.throws(() => M.outputDir({ store: '/src/.archie', base: '/src' }),
+    /store the settings were written to/);
+});
+
+// One output setting, one for the whole set, and every repository rendering
+// through it. Written to `<workspace>/system-map/md/index.md` by name, the second
+// repository silently replaces the first — the same collision `tmp/` is scoped
+// per repository to avoid, and with no error, because overwriting a file it
+// wrote itself looks exactly like re-rendering.
+test('two repositories sharing one configured output do not overwrite each other', () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
+  M.saveConfig(M.storeFor(workspace), { output: 'system-map', repos: [] });
+  const out = [];
+  for (const name of ['orders-api', 'billing-api']) {
+    const { root: repo } = makeTempRepo();
+    const store = M.storeFor(repo, workspace);
+    M.saveModel(store, { version: 1, unknowns: [], entries: [
+      { id: `http.GET./${name}`, kind: 'http', label: `GET /${name}`,
+        evidence: [{ file: 'routes.js', line: 1 }], coverage: 'none' }] });
+    assert.strictEqual(require('../scripts/render').main([repo, '--workspace', workspace]), 0);
+    out.push(M.outputDir({ store, base: workspace, configStore: M.storeFor(workspace), repo, workspace }));
+  }
+  assert.notStrictEqual(out[0], out[1], 'both repositories rendered to the same directory');
+  for (const dir of out) assert.ok(fs.existsSync(path.join(dir, 'md', 'index.md')), `${dir} was overwritten`);
+  assert.notStrictEqual(fs.readFileSync(path.join(out[0], 'md', 'index.md'), 'utf8'),
+    fs.readFileSync(path.join(out[1], 'md', 'index.md'), 'utf8'));
 });

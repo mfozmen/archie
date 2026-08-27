@@ -15,7 +15,7 @@ not the tool.
 ## 1. Read what is there
 
 ```bash
-cat "$root/.archie/recipe.json"
+cat "$store"/recipe.json
 ```
 
 No recipe yet → tell the user to run `/archie:inventory` first and stop.
@@ -34,7 +34,7 @@ Write the corrected recipe to a file, then store it — via a file, never as a
 command-line argument, since a pattern is full of characters a shell will eat:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" recipe "$root"/.archie/tmp/recipe.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" recipe "$tmp"/recipe.json "${WS[@]}"
 ```
 
 It rejects a probe missing a `kind`, `glob` or `pattern`, naming the file and the
@@ -43,7 +43,7 @@ reason.
 ## 4. Try it
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep.js" "$repo" "${WS[@]}"
 ```
 
 Report the new per-probe counts against the old ones, and offer to re-run

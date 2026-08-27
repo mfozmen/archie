@@ -149,7 +149,7 @@ test('the responsibility set does not disturb language, output or scope', () => 
     workspace: '/src', handle: '@someone',
     repos: [{ name: 'orders-api', why: '@org/payments in .github/CODEOWNERS' }], declined: ['some-other-repo'] });
   assert.throws(() => M.validateConfig({ workspace: '/src', output: '../outside' }),
-    /output must be a relative path inside the repository/);
+    /output must be a relative path, under the workspace/);
 });
 
 test('a recipe with no stack, no probes, or an unknown probe kind is rejected', () => {

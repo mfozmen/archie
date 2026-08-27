@@ -234,9 +234,9 @@ test('config validates scope and output, and refuses to escape the repo', () => 
 
 test('outputDir defaults to the wiki directory under .archie', () => {
   const { root } = makeTempRepo();
-  assert.strictEqual(M.outputDir(M.storeFor(root), root), path.join(root, '.archie', 'wiki'));
+  assert.strictEqual(M.outputDir({ store: M.storeFor(root), base: root, configStore: M.storeFor(root), repo: root }), path.join(root, '.archie', 'wiki'));
   M.saveConfig(M.storeFor(root), { output: 'docs/system-map' });
-  assert.strictEqual(M.outputDir(M.storeFor(root), root), path.join(root, 'docs', 'system-map'));
+  assert.strictEqual(M.outputDir({ store: M.storeFor(root), base: root, configStore: M.storeFor(root), repo: root }), path.join(root, 'docs', 'system-map'));
 });
 
 test('output must not resolve to the repository root', () => {
@@ -246,5 +246,5 @@ test('output must not resolve to the repository root', () => {
   for (const bad of ['.', './', '', '././.'])
     assert.throws(() => M.saveConfig(M.storeFor(root), { output: bad }), /output/, JSON.stringify(bad));
   M.saveConfig(M.storeFor(root), { output: './docs/map' });
-  assert.strictEqual(M.outputDir(M.storeFor(root), root), path.join(root, 'docs', 'map'));
+  assert.strictEqual(M.outputDir({ store: M.storeFor(root), base: root, configStore: M.storeFor(root), repo: root }), path.join(root, 'docs', 'map'));
 });

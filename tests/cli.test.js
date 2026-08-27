@@ -164,6 +164,125 @@ test('store: usage, unreadable input, and an unknown target all explain themselv
   assert.match(capture(() => main([root, 'merge-inventory', p])).err, /expects an array/);
 });
 
+// Which file a config lands in is decided by one flag, and getting it wrong is
+// the failure this whole split exists to end: the setting validates, saves, and
+// is reported back as changed, while the code that would act on it reads a
+// different file and finds nothing. Nothing downstream can notice — both files
+// are legitimate — so it has to be refused here.
+test('store: the set\'s settings are refused when written to one repository', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const ws = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'archie-ws-'));
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', repos: [] }));
+  const r = capture(() => main([root, 'config', p, '--workspace', ws]));
+  assert.strictEqual(r.code, 1);
+  assert.match(r.err, /repos, language belong to the whole set/);
+  assert.match(r.err, /no --workspace flag/, 'the message has to say how to fix it');
+
+  // One key, so the sentence has to read as one: "belongs", "write it".
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
+  assert.match(capture(() => main([root, 'config', p, '--workspace', ws])).err,
+    /language belongs to the whole set.*write it with/s);
+
+  // A scope is that repository's own, so the same call is exactly right for it.
+  fs.writeFileSync(p, JSON.stringify({ scope: { label: 'Orders', paths: ['app/**'] } }));
+  assert.strictEqual(capture(() => main([root, 'config', p, '--workspace', ws])).code, 0);
+  // And the set's settings are fine at the top, where they are read from.
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
+  assert.strictEqual(capture(() => main([ws, 'config', p])).code, 0);
+});
+
+// A config write replaces the file, so "change the language" written back as a
+// language is how the responsibility set disappears — with no error, and no
+// symptom until the setup starts asking again about repositories the user
+// already declined. That is the one thing declined[] exists to prevent.
+test('store: a config write that would drop the responsibility set is refused', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'en', repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
+  const r = capture(() => main([root, 'config', p]));
+  assert.strictEqual(r.code, 1);
+  assert.match(r.err, /would drop repos, declined/);
+  assert.deepStrictEqual(require('../scripts/lib/model').loadConfig(path.join(root, '.archie')).declined, ['b'],
+    'the stored config must survive a refused write');
+
+  // Round-tripped whole, the same change goes through.
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'] }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+
+  // The mirror mistake: a scope in the config that carries the responsibility
+  // set. The flag cannot catch this one — a single-repository config holds both
+  // levels — but the set itself says which config this is.
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', workspace: '/src',
+    repos: [{ name: 'a', why: 'named in CODEOWNERS' }], declined: ['b'], scope: { paths: ['app/**'] } }));
+  const m = capture(() => main([root, 'config', p]));
+  assert.strictEqual(m.code, 1);
+  assert.match(m.err, /scope belongs to the repository it scopes/);
+
+
+});
+
+// The loss guard refuses a write that forgot a setting, so removing one on
+// purpose needs a way to say so. Absence is the accident; null is the sentence.
+test('store: a null unsets a setting the loss guard would otherwise protect', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const { loadConfig } = require('../scripts/lib/model');
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'en', output: 'docs/map' }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'en', output: null }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+  const c = loadConfig(path.join(root, '.archie'));
+  assert.strictEqual(c.output, undefined, 'null means remove it, not store a null');
+  assert.strictEqual(c.language, 'en');
+});
+
+// Any one of the four says whose config this is: a single repository is not a set
+// of one, it has no responsibility set at all. A set that has been asked nothing
+// yet still has a `declined` the moment the first answer is no, and it is no less
+// the set's config for having no repos in it.
+test('store: any set-only key marks the config as the set\'s, not one repository\'s', () => {
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  for (const only of [{ workspace: '/src' }, { handle: '@you' }, { repos: [] }, { declined: ['b'] }]) {
+    const { root } = makeTempRepo();
+    const p = path.join(root, 'c.json');
+    fs.writeFileSync(p, JSON.stringify({ ...only, scope: { paths: ['app/**'] } }));
+    assert.match(capture(() => main([root, 'config', p])).err,
+      /scope belongs to the repository it scopes/, `${Object.keys(only)[0]} alone must identify the set`);
+  }
+});
+
+// A single-repository config is both levels in one file, so a scope in it is
+// right — and removing one is done by leaving it out, which the loss guard must
+// not read as damage.
+test('store: a scope in a single-repository config is written, and removed by absence', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr', scope: { label: 'Orders', paths: ['app/**'] } }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'tr' }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+  assert.strictEqual(require('../scripts/lib/model').loadConfig(path.join(root, '.archie')).scope, undefined);
+});
+
 test('render says so when the vendored bundle is missing', () => {
   const { root } = makeTempRepo();
   const { readMermaid } = require('../scripts/render');

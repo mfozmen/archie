@@ -21,7 +21,7 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 | Environment | Opportunistic enrichment: if a knowledge base / issue tracker / grooming plugin is installed, use it; never require it. |
 | Unit of analysis | Two phases: one cheap inventory pass, then selective per-flow depth, accumulating over time. |
 | Trace boundary | A traced flow never follows an outbound call into another system. Outbound calls are labelled boxes at the boundary. **Locked.** |
-| Analysis boundary | One repository at a time. Whether Archie *knows about* more than one is a separate question, and being answered — see #26 and §3. |
+| Analysis boundary | As many repositories as the user says are theirs. Archie runs from the directory the checkouts live in, keeps its store under that workspace, and never writes into a repository it was asked to read — see §3. |
 | Knowledge store | Structural model (JSON) is the single source of truth; every human-facing format is rendered from it. |
 | Evidence bar | Static code (`file:line`) plus existing tests. Anything not provable goes to `unknowns[]`. No guessing, ever. |
 | Other people's names | Never collected, never emitted. Archie reads files full of colleagues — `CODEOWNERS`, git history — and takes from them only what answers the question it was asked. Teams are named because "which team am I on" needs them; individuals are counted instead, so the omission is visible rather than silent. **Locked.** |
@@ -29,24 +29,37 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 
 ## 3. Store layout
 
-> **Being revised (#26).** The store below lives inside the analyzed repository, which
-> assumes the repository being read and the directory being written are the same place.
-> They are not, and a responsibility spanning several repositories has no single repo to
-> keep its map in. `storeFor(repoPath, workspace)` is now the one place that decides where
-> a store goes; given a workspace it answers `<workspace>/.archie/repos/<name>`, which
-> leaves analyzed repositories as read-only inputs. The scripts take `--workspace` and
-> `--store` and are tested against both; what has not adopted them is the skill layer, which
-> still passes a repository and nothing else. So the layout below is still what a run
-> produces today, and will be until the skills change.
->
-> The set itself lives at `<workspace>/.archie/config.json`, alongside `language`, `output`
-> and `scope`: the `workspace` it belongs to, the user's own `handle` as CODEOWNERS spells
-> it, `repos[]` — each `{name, why}`, where `why` is the evidence the user was shown when
-> they said yes — and `declined[]`, bare names. A repo entry without a `why` is refused, on
-> the same rule as an unknown without one: the set is where Archie says a repository is
-> yours, and it may not say so with nothing behind it. `declined[]` carries no `why` because
-> there is nothing there to justify — it stops a question being asked twice and records that
-> this person said "not mine", never a claim about whose the repository is.
+Where the store goes is decided in exactly one place, `storeFor(repoPath, workspace)`:
+
+- **No workspace** — `<repo>/.archie`, the layout shown below. This is a run started from
+  inside a single repository, and it is unchanged.
+- **A workspace** — `<workspace>/.archie/repos/<name>`, and **the analyzed repositories are
+  never written to**. They are read-only inputs, which is what makes it safe to map code
+  somebody else maintains, and what lets a repository that had to be cloned to be read need
+  nothing written back into it.
+
+The second case is the normal one: nobody's responsibility is a single repository, so
+Archie is normally started from the directory the checkouts live in. The single-repository
+case is not a special path — it is the general one with an empty workspace argument.
+
+Settings sit at the level they belong to, and the store has two. The set-wide answers live
+at `<workspace>/.archie/config.json`: `language`, `output`, and the responsibility set
+itself. The one setting that is a single repository's own — its `scope` — lives in that
+repository's store, beside its model, because that is whose it is. Nothing merges the two,
+so a setting written at the wrong level is not read at all: accepted, echoed back, and
+silently never applied.
+
+The responsibility set records the `workspace` it belongs to, the user's own `handle` as CODEOWNERS
+spells it, `repos[]` — each `{name, why}`, where `why` is the evidence the user was shown
+when they said yes — and `declined[]`, bare names. A repo entry without a `why` is refused,
+on the same rule as an unknown without one: the set is where Archie says a repository is
+yours, and it may not say so with nothing behind it. `declined[]` carries no `why` because
+there is nothing there to justify — it stops a question being asked twice and records that
+this person said "not mine", never a claim about whose the repository is.
+
+A `name` must be a plain directory name. It becomes a directory under the store, so one
+carrying a separator or a `..` would walk the store out of the workspace and into a
+repository Archie was only asked to read.
 
 
 ```
@@ -59,11 +72,14 @@ explicitly out of scope for v1 (they can later be derived from the same model).
   wiki/             # rendered output — gitignored; relocatable via config.output
 ```
 
-`config.output` moves the rendered set anywhere inside the repository (`docs/system-map/`,
-say) for teams who want the map browsable, or reviewable in pull requests. It is validated:
-an absolute or escaping path is refused, since this is the one setting that turns into a
-write outside the repo. Everything else in `.archie/` stays where it is — the store is the
-source of truth and is not a matter of preference.
+`config.output` moves the rendered set somewhere browsable (`system-map/`, say) for teams
+who want the map reviewable in pull requests. It is relative and resolves against the
+workspace when there is one, so it stays out of the repositories Archie only reads; in a
+single-repository run it resolves against that repository, which is the only case where a
+map inside the code is what was asked for. It is validated: an absolute or escaping path is
+refused, since this is the one setting that turns into a write outside the store.
+Everything else in the store stays where it is — the store is the source of truth and is
+not a matter of preference.
 
 Entry-point record:
 
@@ -211,8 +227,18 @@ question count (`--unknowns` lists them).
 
 ## 5. First run & configuration
 
-- On the first Archie command in a repo without `.archie/config.json`, ask **three**
-  questions, once, and never again:
+- In a workspace, one question comes before the three: **which of these repositories are
+  yours?** Archie gathers the evidence — `CODEOWNERS` teams, whether the user is named in
+  one (their own handle, asked for once, since nothing local maps an email to a `@handle`),
+  their commits, the README's first real line — proposes a set with the evidence behind each
+  proposal, and then asks what is missing, because both signals undercount by construction.
+  The answer is the responsibility set of §3. Unlike the three below it is not finished once:
+  every later run re-reads the directory, and a repository in neither `repos[]` nor
+  `declined[]` is one nobody has been asked about — a fresh clone — so it is asked about,
+  once. Nothing is re-asked.
+- On the first Archie command with no config in the store, ask **three** questions, once,
+  and never again. The first and third are asked for the whole set; the second is per
+  repository, and stored with it:
   1. **Output language** (suggest a guess from the README's language).
   2. **Scope — what is the user responsible for?** On a large repo, inventorying everything
      buries the part they own. Archie proposes candidates with the evidence behind each — a
@@ -222,8 +248,12 @@ question count (`--unknowns` lists them).
      repository" is offered as a real option and is the default when nothing is chosen.
      Scope narrows the sweep itself, not its results, and **every page rendered under a
      scope says it is not a map of the whole system**.
-  3. **Where the wiki is written** — defaults to `.archie/wiki/`, and may be any path inside
-     the repository. A map nobody browses is a map nobody reads.
+  3. **Where the wiki is written** — defaults to `wiki/` inside the store. A relative path
+     resolves against the workspace when there is one, so it never lands inside a repository
+     Archie was only asked to read, and each repository's map goes in its own directory
+     under it: the setting is the set's, but the pages are named by kind, so a shared
+     directory would have each repository overwrite the last. A map nobody browses is a map
+     nobody reads.
 
   This is a widening of the original "ask one question" rule, made deliberately: the two
   added questions decide what the map is allowed to contain and where anyone will find it,
@@ -235,8 +265,9 @@ question count (`--unknowns` lists them).
   fields, so a language change never re-analyzes code — but it does require a cheap LLM
   pass that re-translates existing `text` fields in place; all structural fields survive
   untouched.
-- Config lives in-repo (`.archie/config.json`) so teammates cloning the repo share it.
-  A user-level default is YAGNI for v1.
+- Config lives in the store: set-wide settings at its top, a repository's `scope` beside
+  that repository's model. In a single-repository run the store is in the repo, so
+  teammates cloning it share the settings. A user-level default is YAGNI for v1.
 
 ## 6. Subagent placement
 
@@ -294,8 +325,8 @@ Two entries moved off this list rather than being delivered. **Multi-repo flow t
 out and always will: it is the trace boundary above, which is locked. What is coming is not
 tracing across repositories but *knowing about* several — a different thing that the old wording
 conflated. **User-level config** was listed as "defaults", a convenience nobody needed; the
-responsibility set that replaces it is not a default but the one piece of state that cannot live
-in any single repository. See #26.
+responsibility set that replaced it is not a default but the one piece of state that cannot live
+in any single repository, which is why it sits at the top of the store (§3).
 
 ## 8. Known limits (contract, not embarrassment)
 

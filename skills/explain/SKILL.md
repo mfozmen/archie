@@ -1,6 +1,6 @@
 ---
 name: explain
-description: Explain one entry point end to end, every claim cited — how does this work? Use when someone asks how a specific endpoint, job, command or webhook works. Traces one entry point, verifies every claim against the code, and writes .archie/flows/<slug>.json.
+description: Explain one entry point end to end, every claim cited — how does this work? Use when someone asks how a specific endpoint, job, command or webhook works. Traces one entry point, verifies every claim against the code, and writes flows/<slug>.json into the store.
 ---
 
 # explain — "How does this work?"
@@ -9,7 +9,7 @@ Follow the preamble in the `inventory` skill (repo root, config, language rules)
 
 ## 1. Resolve the argument to one entry point
 
-Load `.archie/model.json`. No model → tell the user to run `/archie:inventory`
+Load `$store/model.json`. No model → tell the user to run `/archie:inventory`
 first and stop. Fuzzy-match the argument against entry-point labels and ids. More
 than one plausible match → ask the user which one with AskUserQuestion, listing
 the candidates. Never guess between two entry points.
@@ -39,7 +39,7 @@ first.
 ## 2. Trace it
 
 Dispatch the **tracer** agent with the repo root, the entry-point record, the
-current HEAD sha (`git -C "$root" rev-parse HEAD`), and the focus hint if there
+current HEAD sha (`git -C "$repo" rev-parse HEAD`), and the focus hint if there
 was one. The agents hold no shell —
 `Read`, `Grep`, `Glob` and nothing else — so anything they cannot read out of a
 file has to arrive in the prompt.
@@ -48,7 +48,7 @@ If the entry's coverage is `stale`, make it a **refresh** instead of a fresh
 trace — pass the previous flow JSON and the diff:
 
 ```bash
-git -C "$root" cat-file -e <traced_at_sha>^{commit} && git -C "$root" diff <traced_at_sha>..HEAD
+git -C "$repo" cat-file -e <traced_at_sha>^{commit} && git -C "$repo" diff <traced_at_sha>..HEAD
 ```
 
 Refresh must be much cheaper than the first trace, or nobody refreshes and the
@@ -78,18 +78,18 @@ Write the flow to a file and store it — via a file, never as a command-line
 argument, since a claim like "it's rejected" would break a shell-quoted one:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" flow "$root"/.archie/tmp/flow.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" flow "$tmp"/flow.json "${WS[@]}"
 ```
 
 Then, and only then, update this entry in the model:
 
 - `coverage` → `"traced"`.
-- `traced_at_sha` → `git -C "$root" rev-parse HEAD`.
+- `traced_at_sha` → `git -C "$repo" rev-parse HEAD`.
 - `watch[]` → **do not hand-build this.** Derive it from the flow so it cannot be
   forgotten or half-filled:
 
   ```bash
-  node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').watchFromFlow(require('"$root"/.archie/tmp/flow.json')).join('\n')"
+  node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').watchFromFlow(require('"$tmp"/flow.json')).join('\n')"
   ```
 
   It returns every file the page cites — from a claim, from a test, from a
@@ -105,7 +105,7 @@ Then, and only then, update this entry in the model:
 With all three set, write the model out and store it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$root" model "$root"/.archie/tmp/model.json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" model "$tmp"/model.json "${WS[@]}"
 ```
 
 Use `model`, not `merge-inventory`: you are editing one entry of the model you
@@ -114,10 +114,11 @@ just read, not folding in a fresh discovery pass.
 ## 5. Show it
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$root" --md
+node "${CLAUDE_PLUGIN_ROOT}/scripts/render.js" "$repo" --md "${WS[@]}"
 ```
 
-then print `.archie/wiki/md/<slug>.md`.
+then print the rendered `md/<slug>.md`, under the output directory `render.js`
+just reported.
 
 ## The honesty rules, restated because this is where they bite
 

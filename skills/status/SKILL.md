@@ -18,13 +18,13 @@ anyone thinking about it.
 ## Run it
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/status.js" "$root"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/status.js" "$repo" "${WS[@]}"
 ```
 
 Add `--unknowns` when the user asked to see the open questions:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/status.js" "$root" --unknowns
+node "${CLAUDE_PLUGIN_ROOT}/scripts/status.js" "$repo" "${WS[@]}" --unknowns
 ```
 
 ## What it does under the hood
