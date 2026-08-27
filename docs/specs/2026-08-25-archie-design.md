@@ -42,8 +42,14 @@ The second case is the normal one: nobody's responsibility is a single repositor
 Archie is normally started from the directory the checkouts live in. The single-repository
 case is not a special path — it is the general one with an empty workspace argument.
 
-The responsibility set lives at `<workspace>/.archie/config.json`, alongside `language`,
-`output` and `scope`: the `workspace` it belongs to, the user's own `handle` as CODEOWNERS
+Settings sit at the level they belong to, and the store has two. The set-wide answers live
+at `<workspace>/.archie/config.json`: `language`, `output`, and the responsibility set
+itself. The one setting that is a single repository's own — its `scope` — lives in that
+repository's store, beside its model, because that is whose it is. Nothing merges the two,
+so a setting written at the wrong level is not read at all: accepted, echoed back, and
+silently never applied.
+
+The responsibility set records the `workspace` it belongs to, the user's own `handle` as CODEOWNERS
 spells it, `repos[]` — each `{name, why}`, where `why` is the evidence the user was shown
 when they said yes — and `declined[]`, bare names. A repo entry without a `why` is refused,
 on the same rule as an unknown without one: the set is where Archie says a repository is
@@ -218,8 +224,9 @@ question count (`--unknowns` lists them).
 
 ## 5. First run & configuration
 
-- On the first Archie command in a repo without `.archie/config.json`, ask **three**
-  questions, once, and never again:
+- On the first Archie command with no config in the store, ask **three** questions, once,
+  and never again. The first and third are asked for the whole set; the second is per
+  repository, and stored with it:
   1. **Output language** (suggest a guess from the README's language).
   2. **Scope — what is the user responsible for?** On a large repo, inventorying everything
      buries the part they own. Archie proposes candidates with the evidence behind each — a
@@ -229,8 +236,9 @@ question count (`--unknowns` lists them).
      repository" is offered as a real option and is the default when nothing is chosen.
      Scope narrows the sweep itself, not its results, and **every page rendered under a
      scope says it is not a map of the whole system**.
-  3. **Where the wiki is written** — defaults to `.archie/wiki/`, and may be any path inside
-     the repository. A map nobody browses is a map nobody reads.
+  3. **Where the wiki is written** — defaults to `wiki/` inside the store. A relative path
+     resolves against the workspace when there is one, so it never lands inside a repository
+     Archie was only asked to read. A map nobody browses is a map nobody reads.
 
   This is a widening of the original "ask one question" rule, made deliberately: the two
   added questions decide what the map is allowed to contain and where anyone will find it,

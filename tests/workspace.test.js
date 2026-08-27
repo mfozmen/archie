@@ -77,28 +77,34 @@ test('a relative output resolves against the base it is given, not the store', (
   const { root: repo } = makeTempRepo();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
   const store = M.storeFor(repo, workspace);
-  M.saveConfig(store, { output: 'system-map' });
-  assert.strictEqual(M.outputDir(store, workspace), path.join(workspace, 'system-map'));
-  assert.strictEqual(M.outputDir(store, repo), path.join(repo, 'system-map'));
+  const top = M.storeFor(workspace);
+  M.saveConfig(top, { output: 'system-map' });
+  assert.strictEqual(M.outputDir(store, workspace, top), path.join(workspace, 'system-map'));
+  assert.strictEqual(M.outputDir(store, repo, top), path.join(repo, 'system-map'));
 });
 
 test('with no configured output the wiki lands inside the store', () => {
   const { root: repo } = makeTempRepo();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
   const store = M.storeFor(repo, workspace);
-  M.saveConfig(store, {});
-  assert.strictEqual(M.outputDir(store, workspace), path.join(store, 'wiki'));
+  M.saveConfig(M.storeFor(workspace), {});
+  assert.strictEqual(M.outputDir(store, workspace, M.storeFor(workspace)), path.join(store, 'wiki'));
 });
 
 // The unit test above proves outputDir() honours the base it is handed. This
 // one proves render's main() hands it the right one — which is where the bug
 // would actually live, and where a wiki configured with a relative output would
 // otherwise be written straight back into the repository Archie only read.
+//
+// It writes the setting where the setup writes it: the top of the store, not the
+// repository's own. Written to the repository's store, as this test used to do,
+// it passed while every real run ignored the setting entirely — render was
+// reading a file the setup never wrote.
 test('render sends a configured output to the workspace, never into the repo', () => {
   const { root: repo } = makeTempRepo();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'archie-ws-'));
   const store = M.storeFor(repo, workspace);
-  M.saveConfig(store, { output: 'system-map' });
+  M.saveConfig(M.storeFor(workspace), { output: 'system-map' });
   M.saveModel(store, { version: 1, unknowns: [], entries: [
     { id: 'http.GET./x', kind: 'http', label: 'GET /x',
       evidence: [{ file: 'routes.js', line: 1 }], coverage: 'none' }] });
@@ -129,3 +135,4 @@ test('a missing store file is reported at the path it was actually looked for', 
   assert.ok(err.join('\n').includes(path.join(store, 'model.json')),
     `error names the wrong path: ${err.join('\n')}`);
 });
+

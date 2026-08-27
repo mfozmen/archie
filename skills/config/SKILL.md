@@ -7,14 +7,19 @@ description: Change Archie's settings for this repository — language, scope an
 
 Follow the preamble in the `inventory` skill (repo root, config, language rules).
 
-`config.json`, at the top of the store, is small and managed here rather than
-hand-edited:
+The settings are small and managed here rather than hand-edited, and they sit at
+the level they belong to. What the person answered once for everything — the
+language they read in, where their map goes, which repositories are theirs — is
+at the top of the store. What is one repository's own — its scope — is in that
+repository's store, beside its model.
 
 ```json
-{ "language": "en",
-  "output": "docs/system-map",
-  "scope": { "label": "Orders", "paths": ["app/Orders/**", "routes/api.php"] } }
+{ "language": "en", "output": "docs/system-map" }          → $cfgstore/config.json
+{ "scope": { "label": "Orders", "paths": ["app/Orders/**"] } }  → $store/config.json
 ```
+
+Writing either one where the other lives is not a tidiness problem: nothing reads
+it there, so the setting is accepted, echoed back, and silently never applied.
 
 - **`language`** — the narrative language. Identifiers are never translated.
 - **`scope`** — what the user is responsible for. Narrows the sweep itself, and
@@ -34,6 +39,12 @@ Re-derive candidates rather than asking the user to type paths from memory:
 node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo"
 ```
 
+It is written to that repository's own store, with `"${WS[@]}"`:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
+```
+
 Then say plainly what the change means. **Narrowing does not delete anything** —
 entry points already in the model stay, and their traced flows stay; they simply
 stop being re-discovered, and the next `/archie:inventory` will report them as
@@ -50,7 +61,8 @@ the user remove them.
 ## Changing a setting
 
 Read the current config, apply the user's request conversationally, show what will
-change, then write it:
+change, then write it back to the level it came from — `scope` to the repository,
+everything else to the top:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.json

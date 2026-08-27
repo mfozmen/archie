@@ -98,15 +98,21 @@ test('every store-touching call in every skill carries the workspace argument', 
     for (const line of src.split('\n')) {
       const m = line.match(/scripts\/(\w+)\.js"([^\n]*)/);
       if (!m || !STORE_SCRIPTS.includes(m[1])) continue;
-      // The config is the one thing that is NOT one repository's data — it
-      // holds the responsibility set, which spans them — so it is addressed by
-      // the workspace itself. Passing --workspace here is what sends it down
-      // into repos/<name>/, where the first-run check will never find it and
-      // every run asks the questions again.
+      // Config is written at two levels and the flag is what chooses between
+      // them, so a config write is checked by which one it says it is for. The
+      // set — which repositories are yours, the language, the output — is not
+      // any one repository's, so it goes to "$cfg" with no --workspace; pass the
+      // flag there and it lands in repos/<name>/, where the first-run check
+      // never looks and every run asks the questions again. A scope is one
+      // repository's own and goes to "$repo" WITH the flag; drop it there and
+      // nothing reads the scope, so the sweep quietly covers the whole repo.
       if (/ config /.test(m[2])) {
-        assert.ok(!m[2].includes('${WS[@]}'),
-          `${s}: the config write must NOT carry "\${WS[@]}" — ${line.trim()}`);
-        assert.match(m[2], /"\$cfg"/, `${s}: the config write must target $cfg — ${line.trim()}`);
+        const forTheSet = m[2].includes('"$cfg"');
+        assert.ok(forTheSet || m[2].includes('"$repo"'),
+          `${s}: a config write must target $cfg or $repo — ${line.trim()}`);
+        assert.strictEqual(m[2].includes('${WS[@]}'), !forTheSet,
+          `${s}: config write for ${forTheSet ? 'the set must NOT' : 'one repository must'} `
+          + `carry "\${WS[@]}" — ${line.trim()}`);
         continue;
       }
       assert.ok(m[2].includes('${WS[@]}'), `${s}: ${m[1]}.js call is missing "\${WS[@]}" — ${line.trim()}`);

@@ -345,8 +345,13 @@ module.exports = {
   // against — the repository today, the workspace once one is set. Defaults
   // inside the store so a first run writes nothing anyone has to clean up;
   // configurable because a map nobody browses is a map nobody reads.
-  outputDir: (store, base) => {
-    const out = readJson(dir(store, 'config.json'))?.output;
+  //
+  // `cfgStore` is separate from `store` because `output` is not one repository's
+  // setting: it is where this person wants their map, for the whole set, and it
+  // is written once at the top of the store. Reading it from the repository's
+  // own store finds nothing and silently renders to the default instead.
+  outputDir: (store, base, cfgStore) => {
+    const out = readJson(dir(cfgStore, 'config.json'))?.output;
     return out ? path.join(base, out) : dir(store, 'wiki');
   },
   loadRecipe: (store) => readJson(dir(store, 'recipe.json')),

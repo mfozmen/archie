@@ -33,7 +33,13 @@ function paths(args) {
   // resolves against. Anchoring that to the repository instead would render a
   // wiki straight back into code Archie was only supposed to read — the failure
   // moving the store exists to prevent.
-  return { repo, workspace, base: workspace || repo, store: store || require('./model').storeFor(repo, workspace), rest };
+  const resolved = store || require('./model').storeFor(repo, workspace);
+  // Two levels, and each holds what belongs to it. One repository's data — model,
+  // flows, recipe, and the scope that narrows it — is in that repository's store.
+  // The answers that span the set — which repositories are yours, the language,
+  // where the map goes — sit at the top, because they are not any one repo's.
+  const configStore = workspace ? require('./model').storeFor(workspace) : resolved;
+  return { repo, workspace, base: workspace || repo, store: resolved, configStore, rest };
 }
 
 module.exports = { runMain, paths };

@@ -141,6 +141,17 @@ chosen. Scope is a convenience, not something to talk anyone into.
 node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo"
 ```
 
+A scope belongs to the repository it scopes, so it is written to **that
+repository's** store, with `"${WS[@]}"` — not into the answers below:
+
+```json
+{ "scope": { "label": "Orders", "paths": ["app/Orders/**", "routes/api.php"] } }
+```
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
+```
+
 **Where the wiki is written.** Default is inside the store, which keeps
 generated files out of everyone's way. Offer something browsable —
 `system-map/` under the workspace, or `docs/system-map/` in the single-repo
@@ -164,7 +175,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.jso
 
 Omit `scope` entirely for a whole-repository map — an empty `paths` and no
 `scope` mean the same thing, and neither adds a caveat to the rendered pages.
-Every later run reads this file; `/archie:config` changes any of it.
+Every later run reads these; `/archie:config` changes any of them.
 
 Scratch JSON goes under `tmp/` inside that repository's store (`mkdir -p` it
 first), never a fixed path in `/tmp`: two Archie sessions on two different
