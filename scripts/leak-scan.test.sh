@@ -5,6 +5,7 @@
 #  3) leaky tracked file -> exit 1
 #  4) leaky unpushed commit message -> exit 1
 #  5) the same leaky content under vendor/ -> exit 0 (third-party exemption)
+#  6) --file over an uncommitted GitHub body -> blocks on a hit, passes when clean
 set -euo pipefail
 scan="$(cd "$(dirname "$0")" && pwd)/leak-scan.sh"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
@@ -15,6 +16,7 @@ git config commit.gpgsign false
 git commit -q --allow-empty -m init
 
 run() { LEAK_PATTERNS_FILE="${1:-$tmp/.leak-patterns}" bash "$scan" >/dev/null 2>&1; }
+run_file() { LEAK_PATTERNS_FILE="$tmp/.leak-patterns" bash "$scan" --file "$1" >/dev/null 2>&1; }
 
 # 1: no pattern file
 run /nonexistent && echo "PASS no-patterns" || { echo "FAIL no-patterns"; exit 1; }
@@ -45,5 +47,17 @@ run && echo "PASS vendor-exempt" || { echo "FAIL vendor-exempt"; exit 1; }
 echo "minified SecretCorp identifier" > src.js
 git add src.js && git commit -qm "add source"
 if run; then echo "FAIL vendor-exempt-scope"; exit 1; else echo "PASS vendor-exempt-scope"; fi
+
+# 6: --file scans a GitHub body that is never committed, so nothing else in the
+# script would ever see it. The tree is still leaky from case 5b, which is the
+# point of 6b: the mode reports on the file it was handed and nothing else.
+echo "issue body mentioning SecretCorp" > "$tmp/body.md"
+if run_file "$tmp/body.md"; then echo "FAIL body-leaky"; exit 1; else echo "PASS body-leaky"; fi
+
+echo "issue body about the orders service" > "$tmp/body.md"
+run_file "$tmp/body.md" && echo "PASS body-clean" || { echo "FAIL body-clean"; exit 1; }
+
+# 6c: a mistyped path must fail rather than report a clean body that was never read.
+if run_file "$tmp/typo.md"; then echo "FAIL body-missing"; exit 1; else echo "PASS body-missing"; fi
 
 echo "all checks passed"

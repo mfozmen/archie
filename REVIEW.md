@@ -21,11 +21,25 @@ Everything illustrative must be **synthetic and generic**: invented service name
 (`api-service`), placeholder keys (`PROJ-123`), and a made-up web-shop domain (orders,
 shipments, notifications). When in doubt, genericize.
 
-**Leakage rides on three surfaces that ship separately: the file, the commit message, and
-the release note.** Cleaning one is not cleaning the change — before pushing, check the tree
-AND `git log` for the phrasing, not just the diff. `scripts/leak-scan.sh` automates this and
-runs as a pre-push hook; its pattern list is local-only (committing the list would itself be
-the leak) — see the script header for setup.
+**Leakage rides on four surfaces that ship separately: the file, the commit message, the
+release note, and anything typed straight into GitHub.** Cleaning one is not cleaning the
+change — before pushing, check the tree AND `git log` for the phrasing, not just the diff.
+`scripts/leak-scan.sh` automates the first two and runs as a pre-push hook; its pattern list
+is local-only (committing the list would itself be the leak) — see the script header for
+setup.
+
+The fourth surface is the leaky one, and it is the one that already leaked here. An issue,
+PR, or release body written with `--body`/`--notes` never passes through git, so no hook can
+see it — and it is public the instant it is sent, where editing it afterwards does not
+unsend the notification email. Draft that text into a file and hand it to the scanner first:
+
+```bash
+bash scripts/leak-scan.sh --file body.md && gh issue create --body-file body.md
+```
+
+**This is a convention, not a gate.** Nothing hooks `gh`, so skipping the check costs
+nothing and no tooling will notice. Treat prose written straight into a `--body` flag the
+way you would treat a `--no-verify` push.
 
 ## 2. Honesty invariants (blocking)
 
