@@ -140,12 +140,72 @@ function checkScope(scope, e) {
   if (scope.label !== undefined && typeof scope.label !== 'string') e.push('scope.label must be a string');
 }
 
+// Every store path under a workspace is built from this value, so a relative one
+// would resolve against whatever directory the command happened to be run from
+// and scatter a repo's stores across as many places as it was invoked.
+function checkWorkspace(w, e) {
+  if (typeof w !== 'string' || !path.isAbsolute(w)) e.push('workspace must be an absolute path');
+}
+
+// Asked once, then compared against CODEOWNERS tokens, which carry the `@`. A
+// handle stored without it matches nothing, and the failure is invisible: the
+// user simply never appears to be named in any repository they own.
+function checkHandle(h, e) {
+  if (typeof h !== 'string' || !h.startsWith('@') || h === '@') e.push('handle must be a CODEOWNERS handle like @someone');
+}
+
+// The set is the one place Archie says "this is yours", so every entry carries
+// the evidence that put it there, in the words the user was shown. An entry
+// without a `why` is an assertion with nothing behind it — a set that accumulates
+// those is the exact failure the rest of this file exists to prevent.
+function checkRepos(repos, e) {
+  if (!Array.isArray(repos)) { e.push('repos must be an array'); return; }
+  const seen = new Set();
+  repos.forEach((r, i) => {
+    if (!r || typeof r !== 'object') { e.push(`repos[${i}]: must be an object`); return; }
+    // A name is also a store directory: two entries sharing one would have the
+    // second repository's inventory overwrite the first, with no error anywhere.
+    if (typeof r.name !== 'string' || !r.name) e.push(`repos[${i}]: name required`);
+    // The name IS a directory under the workspace store, so it is exactly the
+    // kind of value checkOutput above refuses to take on trust. A name carrying
+    // a separator or a `..` walks the store out of the workspace and into a
+    // repository Archie was only ever asked to read — the one thing the whole
+    // move exists to prevent. Caught here rather than at the path.join, because
+    // this file is where bad values are supposed to stop.
+    else if (r.name !== path.basename(r.name) || r.name === '.' || r.name === '..')
+      e.push(`repos[${i}]: name must be a plain directory name, not a path`);
+    else if (seen.has(r.name)) e.push(`repos[${i}]: duplicate name "${r.name}"`);
+    else seen.add(r.name);
+    if (typeof r.why !== 'string' || !r.why) e.push(`repos[${i}]: why required — the evidence that put this repo in the set`);
+  });
+}
+
+// Names only, deliberately. This list exists so the same question is not asked
+// twice and for nothing else: it records that this person said a repository is
+// not theirs, never a claim about whose it is, so there is nothing here to
+// justify and no `why` to carry.
+function checkDeclined(declined, e) {
+  if (!Array.isArray(declined)) { e.push('declined must be an array'); return; }
+  if (declined.some(n => typeof n !== 'string' || !n)) e.push('declined must be non-empty strings');
+}
+
 function validateConfig(c) {
   const e = [];
   if (!c || typeof c !== 'object') e.push('config must be an object');
   if (c?.language !== undefined && typeof c.language !== 'string') e.push('language must be a string');
   if (c?.output !== undefined) checkOutput(c.output, e);
   if (c?.scope !== undefined) checkScope(c.scope, e);
+  if (c?.workspace !== undefined) checkWorkspace(c.workspace, e);
+  if (c?.handle !== undefined) checkHandle(c.handle, e);
+  if (c?.repos !== undefined) checkRepos(c.repos, e);
+  if (c?.declined !== undefined) checkDeclined(c.declined, e);
+  // A name in both lists makes the two halves contradict each other: the set
+  // says the repository is yours while the asking-log says you already said it
+  // is not. Whichever is stale, only the user can say, so refuse to guess.
+  if (Array.isArray(c?.repos) && Array.isArray(c?.declined)) {
+    const declined = new Set(c.declined);
+    for (const r of c.repos) if (r?.name && declined.has(r.name)) e.push(`repos: "${r.name}" is also in declined`);
+  }
   fail(e);
 }
 

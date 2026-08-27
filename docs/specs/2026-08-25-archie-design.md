@@ -38,6 +38,15 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 > `--store` and are tested against both; what has not adopted them is the skill layer, which
 > still passes a repository and nothing else. So the layout below is still what a run
 > produces today, and will be until the skills change.
+>
+> The set itself lives at `<workspace>/.archie/config.json`, alongside `language`, `output`
+> and `scope`: the `workspace` it belongs to, the user's own `handle` as CODEOWNERS spells
+> it, `repos[]` — each `{name, why}`, where `why` is the evidence the user was shown when
+> they said yes — and `declined[]`, bare names. A repo entry without a `why` is refused, on
+> the same rule as an unknown without one: the set is where Archie says a repository is
+> yours, and it may not say so with nothing behind it. `declined[]` carries no `why` because
+> there is nothing there to justify — it stops a question being asked twice and records that
+> this person said "not mine", never a claim about whose the repository is.
 
 
 ```
