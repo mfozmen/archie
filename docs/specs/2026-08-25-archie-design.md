@@ -227,6 +227,15 @@ question count (`--unknowns` lists them).
 
 ## 5. First run & configuration
 
+- In a workspace, one question comes before the three: **which of these repositories are
+  yours?** Archie gathers the evidence — `CODEOWNERS` teams, whether the user is named in
+  one (their own handle, asked for once, since nothing local maps an email to a `@handle`),
+  their commits, the README's first real line — proposes a set with the evidence behind each
+  proposal, and then asks what is missing, because both signals undercount by construction.
+  The answer is the responsibility set of §3. Unlike the three below it is not finished once:
+  every later run re-reads the directory, and a repository in neither `repos[]` nor
+  `declined[]` is one nobody has been asked about — a fresh clone — so it is asked about,
+  once. Nothing is re-asked.
 - On the first Archie command with no config in the store, ask **three** questions, once,
   and never again. The first and third are asked for the whole set; the second is per
   repository, and stored with it:
