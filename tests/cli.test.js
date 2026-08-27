@@ -89,8 +89,11 @@ test('sweep: reports counts, zero probes and writes sweep.json', () => {
   r = capture(() => require('../scripts/sweep').main([root]));
   assert.match(r.out, /0 hits for queue in the 1 file\(s\) its glob matches within the configured scope/);
   // The glob-matched-nothing case says so under a scope too, since the scope is
-  // then part of why nothing matched.
+  // then part of why nothing matched — and stops telling anyone to fix a glob
+  // that a scope, not the glob, emptied.
   assert.match(r.out, /0 files match the cli glob bin\/\*\*\/\* within the configured scope/);
+  assert.match(r.out, /either the scope excludes that area, or the glob is wrong/);
+  assert.doesNotMatch(r.out, /within the configured scope — the pattern was never tried; fix the glob/);
 });
 
 test('churn: no model is an explained failure; otherwise it ranks', () => {

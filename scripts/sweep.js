@@ -115,7 +115,12 @@ function main(args) {
   for (const z of res.zeroProbes) console.log(
     z.files === 0
       ? `⚠ 0 files match the ${z.kind} glob ${z.glob}${res.scoped ? ' within the configured scope' : ''}`
-        + ` — the pattern was never tried; fix the glob with /archie:recipe`
+        + ' — the pattern was never tried; '
+        // A scope is a reason for a glob to match nothing that has nothing to do
+        // with the glob. Telling someone to fix one that is fine is the same
+        // misdirection as blaming the pattern, one level up.
+        + (res.scoped ? 'either the scope excludes that area, or the glob is wrong'
+          : 'fix the glob with /archie:recipe')
       : res.scoped
         ? `⚠ 0 hits for ${z.kind} in the ${z.files} file(s) its glob matches within the configured scope`
           + ' — either it does not exist in your area, or the pattern is wrong'
