@@ -1,4 +1,4 @@
-{ "name": "archie", "version": "0.1.0",
+{ "name": "archie", "version": "0.2.0",
   "description": "Understand a legacy codebase by reading it — an evidence-backed, incrementally-growing system map: inventory, per-flow explanations, a rendered wiki, and staleness tracking.",
   "author": { "name": "Mehmet Fahri Özmen" },
   "homepage": "https://github.com/mfozmen/archie",
