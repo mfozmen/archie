@@ -77,7 +77,7 @@ about evidence quality was "fixed" with a `ref:` that opened token exposure. The
 worse than the finding. When a CI change trades safety for convenience, the safe answer is
 to accept the inconvenience and document it.
 
-## 4. Scope invariants
+## 4. Scope invariants (blocking)
 
 - **Read-only against the analyzed repo.** In a workspace the store lives under the
   workspace, so a change that writes into a repository Archie was only asked to read is
