@@ -61,12 +61,19 @@ the user remove them.
 ## Changing a setting
 
 Read the current config, apply the user's request conversationally, show what will
-change, then write it back to the level it came from — `scope` to the repository,
-everything else to the top:
+change, then write it back to the level it came from. Which of the two lines you
+run is the whole decision, so pick it by the setting, not by which one is above:
 
 ```bash
+# scope — that repository's own
+node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" config "$tmp"/config.json "${WS[@]}"
+
+# language, output, the responsibility set — the whole set's
 node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.json
 ```
+
+Run the wrong one and the setting is written, reported back as changed, and read
+by nothing.
 
 ## Changing the language is a translation pass, not a re-trace
 
