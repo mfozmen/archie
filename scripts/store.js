@@ -43,6 +43,11 @@ function main(args) {
         // here it would be validated, stored, reported back as changed, and
         // then read by nothing. Refuse it where the mistake is made rather than
         // leaving someone to notice their setting never took effect.
+        //
+        // The mirror check — a scope written to the top — is missing because it
+        // cannot exist. In a single-repository run one file holds both levels
+        // and the two writes are the same command, so refusing a scope without
+        // --workspace would refuse every correct one.
         const set = SET_WIDE.filter(k => k in data);
         if (workspace && set.length) return die(`${file}: ${set.join(', ')} `
           + `${set.length > 1 ? 'belong' : 'belongs'} to the whole set, not to one repository — `
