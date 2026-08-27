@@ -199,3 +199,19 @@ test('a non-array entries is listed as a violation, not crashed on', () => {
       JSON.stringify(entries));
   }
 });
+
+// A repo name is a directory under the workspace store. checkOutput refuses to
+// take config.output on trust for exactly this reason, and a name is no
+// different: one carrying a separator or a `..` walks the store out of the
+// workspace and into a repository Archie was only asked to read.
+test('a repo name that is a path, not a name, is refused', () => {
+  for (const name of ['../../etc', 'a/b', '.', '..']) {
+    assert.throws(() => M.validateConfig({ repos: [{ name, why: 'w' }] }),
+      /name must be a plain directory name/, `accepted ${JSON.stringify(name)}`);
+    // And it really would have escaped: this is the trap, not just the guard.
+    if (name.includes('..'))
+      assert.ok(!M.storeFor('/ws/x', '/ws', name).startsWith('/ws/.archie/repos/'),
+        `${name} stays inside the store, so the guard would be pointless`);
+  }
+  assert.doesNotThrow(() => M.validateConfig({ repos: [{ name: 'orders-api', why: 'w' }] }));
+});

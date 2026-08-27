@@ -166,6 +166,14 @@ function checkRepos(repos, e) {
     // A name is also a store directory: two entries sharing one would have the
     // second repository's inventory overwrite the first, with no error anywhere.
     if (typeof r.name !== 'string' || !r.name) e.push(`repos[${i}]: name required`);
+    // The name IS a directory under the workspace store, so it is exactly the
+    // kind of value checkOutput above refuses to take on trust. A name carrying
+    // a separator or a `..` walks the store out of the workspace and into a
+    // repository Archie was only ever asked to read — the one thing the whole
+    // move exists to prevent. Caught here rather than at the path.join, because
+    // this file is where bad values are supposed to stop.
+    else if (r.name !== path.basename(r.name) || r.name === '.' || r.name === '..')
+      e.push(`repos[${i}]: name must be a plain directory name, not a path`);
     else if (seen.has(r.name)) e.push(`repos[${i}]: duplicate name "${r.name}"`);
     else seen.add(r.name);
     if (typeof r.why !== 'string' || !r.why) e.push(`repos[${i}]: why required — the evidence that put this repo in the set`);
