@@ -72,11 +72,14 @@ repository Archie was only asked to read.
   wiki/             # rendered output — gitignored; relocatable via config.output
 ```
 
-`config.output` moves the rendered set anywhere inside the repository (`docs/system-map/`,
-say) for teams who want the map browsable, or reviewable in pull requests. It is validated:
-an absolute or escaping path is refused, since this is the one setting that turns into a
-write outside the repo. Everything else in `.archie/` stays where it is — the store is the
-source of truth and is not a matter of preference.
+`config.output` moves the rendered set somewhere browsable (`system-map/`, say) for teams
+who want the map reviewable in pull requests. It is relative and resolves against the
+workspace when there is one, so it stays out of the repositories Archie only reads; in a
+single-repository run it resolves against that repository, which is the only case where a
+map inside the code is what was asked for. It is validated: an absolute or escaping path is
+refused, since this is the one setting that turns into a write outside the store.
+Everything else in the store stays where it is — the store is the source of truth and is
+not a matter of preference.
 
 Entry-point record:
 
@@ -250,8 +253,9 @@ question count (`--unknowns` lists them).
   fields, so a language change never re-analyzes code — but it does require a cheap LLM
   pass that re-translates existing `text` fields in place; all structural fields survive
   untouched.
-- Config lives in-repo (`.archie/config.json`) so teammates cloning the repo share it.
-  A user-level default is YAGNI for v1.
+- Config lives in the store: set-wide settings at its top, a repository's `scope` beside
+  that repository's model. In a single-repository run the store is in the repo, so
+  teammates cloning it share the settings. A user-level default is YAGNI for v1.
 
 ## 6. Subagent placement
 
