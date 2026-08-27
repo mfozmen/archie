@@ -39,6 +39,16 @@ Re-derive candidates rather than asking the user to type paths from memory:
 node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo"
 ```
 
+When the user has named a team — and in a workspace they already did, answering
+which repositories are theirs — pass it, so `CODEOWNERS` is read for that team's
+areas rather than the whole file. The email argument is what git history is
+matched against; it defaults to that checkout's own, which is not always the one
+they commit under:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo" "$(git -C "$repo" config user.email)" @org/orders-team
+```
+
 It is written to that repository's own store, with `"${WS[@]}"`, and — like every
 config write — carries the whole object: in a single-repository run that same file
 also holds the language and the output, and a write that leaves them out is
@@ -68,7 +78,8 @@ change, then write **the whole object** back to the level it came from — the w
 replaces the file, and the top of the store is where the responsibility set lives,
 so a language change sent back as only a language takes `repos[]` and `declined[]`
 with it. `store.js` refuses that, but the fix is to round-trip what you read, not
-to argue with the error. Which of the two lines you
+to argue with the error. To remove a setting on purpose, write it as `null` —
+leaving it out is the accident the refusal is for. Which of the two lines you
 run is the whole decision, so pick it by the setting, not by which one is above:
 
 ```bash

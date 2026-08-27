@@ -59,6 +59,10 @@ function main(args) {
         //
         // Only the set-wide keys: dropping `scope` is how a scope is removed,
         // which is a real thing to want and says so by being absent.
+        // An explicit null is how a setting is deliberately removed: the key is
+        // present, so this is somebody saying "no output", not a write that
+        // forgot the file had one. It is dropped just below, before validation,
+        // since the schema describes what a setting is, not how to unset it.
         const lost = SET_WIDE.filter(k => k in (M.loadConfig(store) || {}) && !(k in data));
         if (lost.length) return die(`${file}: this would drop ${lost.join(', ')} from the stored `
           + `config — a config write replaces the file, so write back what you read, whole`);
@@ -69,6 +73,7 @@ function main(args) {
         if (workspace && set.length) return die(`${file}: ${set.join(', ')} `
           + `${set.length > 1 ? 'belong' : 'belongs'} to the whole set, not to one repository — `
           + `write ${set.length > 1 ? 'them' : 'it'} with the workspace as the root and no --workspace flag`);
+        for (const [k, v] of Object.entries(data)) if (v === null) delete data[k];
         M.saveConfig(store, data); break;
       }
       case 'model': M.saveModel(store, data); break;

@@ -230,6 +230,25 @@ test('store: a config write that would drop the responsibility set is refused', 
 
 });
 
+// The loss guard refuses a write that forgot a setting, so removing one on
+// purpose needs a way to say so. Absence is the accident; null is the sentence.
+test('store: a null unsets a setting the loss guard would otherwise protect', () => {
+  const { root } = makeTempRepo();
+  const { main } = require('../scripts/store');
+  const fs = require('node:fs');
+  const { loadConfig } = require('../scripts/lib/model');
+  const p = path.join(root, 'c.json');
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'en', output: 'docs/map' }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+
+  fs.writeFileSync(p, JSON.stringify({ language: 'en', output: null }));
+  assert.strictEqual(capture(() => main([root, 'config', p])).code, 0);
+  const c = loadConfig(path.join(root, '.archie'));
+  assert.strictEqual(c.output, undefined, 'null means remove it, not store a null');
+  assert.strictEqual(c.language, 'en');
+});
+
 // A single-repository config is both levels in one file, so a scope in it is
 // right — and removing one is done by leaving it out, which the loss guard must
 // not read as damage.

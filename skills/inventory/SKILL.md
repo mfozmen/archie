@@ -141,6 +141,16 @@ chosen. Scope is a convenience, not something to talk anyone into.
 node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo"
 ```
 
+When the user has named a team — and in a workspace they already did, answering
+which repositories are theirs — pass it, so `CODEOWNERS` is read for that team's
+areas rather than the whole file. The email argument is what git history is
+matched against; it defaults to that checkout's own, which is not always the one
+they commit under:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/scope.js" "$repo" "$(git -C "$repo" config user.email)" @org/orders-team
+```
+
 A scope belongs to the repository it scopes, so it is written to **that
 repository's** store, with `"${WS[@]}"` — not into the answers below:
 
