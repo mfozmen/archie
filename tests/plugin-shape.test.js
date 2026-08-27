@@ -153,3 +153,30 @@ test('the preamble defines every variable the skills go on to use', () => {
   assert.match(pre, /once per repository|repo="\$ws\//,
     'the preamble must say what $repo is when there is a workspace');
 });
+
+// $root is what `git rev-parse --show-toplevel` printed, and it is only set on
+// the single-repository branch of the preamble. Anywhere else it is empty in a
+// workspace, so a command using it runs against the wrong directory or none at
+// all. Four such uses survived a rename in one PR by not being script calls —
+// they were `git -C "$root"` and a raw `cat "$root/.archie/..."` — which is why
+// this looks for the variable rather than for a shape of command.
+test('$root appears only where the preamble defines it', () => {
+  for (const s of SURFACES) {
+    const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    src.split('\n').forEach((line, i) => {
+      if (!line.includes('$root')) return;
+      const inPreamble = s === 'inventory' && /repo="\$root"|cfg="\$\{ws:-\$root\}"/.test(line);
+      assert.ok(inPreamble, `${s}:${i + 1} uses $root outside the preamble — ${line.trim()}`);
+    });
+  }
+});
+
+// The store is not beside the repository any more, so a skill that builds
+// "$repo/.archie/..." by hand reads a path that only exists in the single case.
+test('no skill hand-builds a store path from the repository', () => {
+  for (const s of SURFACES) {
+    const src = fs.readFileSync(path.join(root, 'skills', s, 'SKILL.md'), 'utf8');
+    for (const m of src.matchAll(/"\$\w+\/\.archie\/[^"]*"/g))
+      assert.fail(`${s}: store path built by hand — ${m[0]}. Ask storeFor() instead.`);
+  }
+});

@@ -15,7 +15,7 @@ not the tool.
 ## 1. Read what is there
 
 ```bash
-cat "$root/.archie/recipe.json"
+cat "$(node -p "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/model').storeFor('$repo', '${ws:-}')")/recipe.json"
 ```
 
 No recipe yet → tell the user to run `/archie:inventory` first and stop.

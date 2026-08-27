@@ -39,7 +39,7 @@ first.
 ## 2. Trace it
 
 Dispatch the **tracer** agent with the repo root, the entry-point record, the
-current HEAD sha (`git -C "$root" rev-parse HEAD`), and the focus hint if there
+current HEAD sha (`git -C "$repo" rev-parse HEAD`), and the focus hint if there
 was one. The agents hold no shell —
 `Read`, `Grep`, `Glob` and nothing else — so anything they cannot read out of a
 file has to arrive in the prompt.
@@ -48,7 +48,7 @@ If the entry's coverage is `stale`, make it a **refresh** instead of a fresh
 trace — pass the previous flow JSON and the diff:
 
 ```bash
-git -C "$root" cat-file -e <traced_at_sha>^{commit} && git -C "$root" diff <traced_at_sha>..HEAD
+git -C "$repo" cat-file -e <traced_at_sha>^{commit} && git -C "$repo" diff <traced_at_sha>..HEAD
 ```
 
 Refresh must be much cheaper than the first trace, or nobody refreshes and the
@@ -84,7 +84,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$repo" flow "$tmp"/flow.json "${W
 Then, and only then, update this entry in the model:
 
 - `coverage` → `"traced"`.
-- `traced_at_sha` → `git -C "$root" rev-parse HEAD`.
+- `traced_at_sha` → `git -C "$repo" rev-parse HEAD`.
 - `watch[]` → **do not hand-build this.** Derive it from the flow so it cannot be
   forgotten or half-filled:
 
