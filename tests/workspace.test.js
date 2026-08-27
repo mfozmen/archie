@@ -59,6 +59,15 @@ test('--store overrides the default, and is stripped from the positional argumen
   assert.deepStrictEqual(r.rest, ['/src/orders-api', '--unknowns']);
 });
 
+// Given both, they answer the same question differently. `--store` is the more
+// specific answer — a directory, named outright — so it wins for both levels
+// rather than leaving the config somewhere the caller never mentioned.
+test('an explicit --store answers for both levels, workspace or not', () => {
+  const r = paths(['/src/orders-api', '--store', '/tmp/s', '--workspace', '/src']);
+  assert.strictEqual(r.store, '/tmp/s');
+  assert.strictEqual(r.configStore, '/tmp/s');
+});
+
 test('with no --store the repository is its own store, as it has always been', () => {
   const r = paths(['/src/orders-api']);
   assert.strictEqual(r.store, path.join('/src/orders-api', '.archie'));

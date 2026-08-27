@@ -38,7 +38,11 @@ function paths(args) {
   // flows, recipe, and the scope that narrows it — is in that repository's store.
   // The answers that span the set — which repositories are yours, the language,
   // where the map goes — sit at the top, because they are not any one repo's.
-  const configStore = workspace ? require('./model').storeFor(workspace) : resolved;
+  // `--store` names the store outright, so it answers for both levels: one
+  // directory was given and that is where everything is, exactly as in a
+  // single-repository run. Deriving the config store from the workspace anyway
+  // would hand back two paths from two different answers to the same question.
+  const configStore = workspace && !store ? require('./model').storeFor(workspace) : resolved;
   return { repo, workspace, base: workspace || repo, store: resolved, configStore, rest };
 }
 
