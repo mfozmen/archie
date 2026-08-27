@@ -245,9 +245,10 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep.js" "$repo" "${WS[@]}"
 The sweep reads the configured scope itself and narrows the file list before any
 probe runs — filtering afterwards would have spent the work already.
 
-Print the per-probe counts and **every zero-hit warning verbatim**. A probe with
-0 hits means the recipe is probably wrong; never let it pass silently. The hits
-land in `$store/sweep.json`.
+Print the per-probe counts and **every zero-hit warning verbatim** — verbatim
+because the warning says which half of the probe found nothing, and summarising
+it back into "the recipe is wrong" is how someone rewrites a pattern that was
+never tried. Never let a zero pass silently. The hits land in `$store/sweep.json`.
 
 ## Step 3 — classify the hits (subagents, schema-bound)
 

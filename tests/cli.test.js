@@ -68,19 +68,29 @@ test('sweep: reports counts, zero probes and writes sweep.json', () => {
   commitAll(root, 'routes');
   M.saveRecipe(M.storeFor(root), { stack: 'generic', probes: [
     { kind: 'http', glob: 'routes/**/*.php', pattern: 'Route::(get|post)' },
-    { kind: 'cli', glob: 'bin/**/*', pattern: 'nothing-here' } ] });
+    { kind: 'cli', glob: 'bin/**/*', pattern: 'nothing-here' },
+    // Its glob matches the one file there is; only the pattern finds nothing.
+    { kind: 'queue', glob: 'routes/**/*.php', pattern: 'ShouldQueue' } ] });
 
   let r = capture(() => require('../scripts/sweep').main([root]));
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /1 candidate hits/);
-  assert.match(r.out, /⚠ 0 hits for cli probe — recipe may be wrong/);
+  // Two zeroes, two different facts. The glob that matched no file never tried
+  // its pattern, so saying the pattern may be wrong would be a claim past what
+  // was measured — and on a real run that claim sent someone to rewrite a recipe
+  // that was correct.
+  assert.match(r.out, /0 files match the cli glob bin\/\*\*\/\* — the pattern was never tried/);
+  assert.match(r.out, /0 hits for queue in the 1 file\(s\) its glob matches — the pattern may be wrong/);
   assert.ok(require('node:fs').existsSync(path.join(root, '.archie', 'sweep.json')));
 
   // Under a scope the same zero reads differently, and must not send someone off
   // to fix a recipe that is fine.
   M.saveConfig(M.storeFor(root), { scope: { label: 'Routes', paths: ['routes'] } });
   r = capture(() => require('../scripts/sweep').main([root]));
-  assert.match(r.out, /within the configured scope/);
+  assert.match(r.out, /0 hits for queue in the 1 file\(s\) its glob matches within the configured scope/);
+  // The glob-matched-nothing case says so under a scope too, since the scope is
+  // then part of why nothing matched.
+  assert.match(r.out, /0 files match the cli glob bin\/\*\*\/\* within the configured scope/);
 });
 
 test('churn: no model is an explained failure; otherwise it ranks', () => {

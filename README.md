@@ -127,9 +127,10 @@ Most-changed entry points (last 6 months):
 Start with the top one: /archie:explain "POST /api/orders/{id}/ship"
 ```
 
-If a probe reports **0 hits**, the recipe is probably wrong for your stack — that is
-what `/archie:recipe "<hint>"` is for. Archie says so rather than reporting an empty
-inventory as an answer.
+If a probe reports **0 hits**, Archie says which half of it found nothing: a glob that
+matched no file never tried its pattern, and a pattern that found nothing in the files it
+was given is a different problem. Either way `/archie:recipe "<hint>"` is what fixes it,
+and either way Archie says so rather than reporting an empty inventory as an answer.
 
 **2. How does this work?**
 
