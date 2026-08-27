@@ -19,8 +19,11 @@ Follow the preamble in the `inventory` skill (repo root, config, language rules)
 - **`scope`** — what the user is responsible for. Narrows the sweep itself, and
   puts a "not a map of the whole system" banner on every rendered page. Omit it
   for a whole-repository map.
-- **`output`** — where `wiki` renders to. Defaults to `.archie/wiki/`; must be
-  inside the repository.
+- **`output`** — where `wiki` renders to. Relative, and it resolves against the
+  **workspace** when there is one, so a rendered map never lands inside a
+  repository Archie was only asked to read. In a single-repository run it
+  resolves against that repository, as before. Defaults to `wiki/` inside the
+  store.
 
 ## Changing the scope
 
@@ -57,7 +60,9 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/store.js" "$cfg" config "$cfgtmp"/config.jso
 Existing flows already carry proven claims. Re-tracing them to change their
 language would spend the whole budget and risk losing evidence, so instead:
 
-1. For each flow in `.archie/flows/`, translate **only** the natural-language
+1. For each flow in the store's `flows/` — ask `storeFor()` for the store, never
+   assemble the path, because in a workspace it is not beside the repository —
+   translate **only** the natural-language
    fields: each claim's `text`, the flow `summary`, and each unknown's `text` and
    `why`.
 2. Leave every structural field byte-identical: `id`, `evidence`, `tests`,
