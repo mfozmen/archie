@@ -120,17 +120,18 @@ function validateFlow(flow) {
 }
 
 // The config decides where rendered files are written, so it is the one place a
-// bad value turns into a write outside the repository. Validated like everything
-// else rather than trusted because "the user typed it".
+// bad value turns into a write outside the store — and, in a workspace, into a
+// repository Archie was only asked to read. Validated like everything else
+// rather than trusted because "the user typed it".
 function checkOutput(output, e) {
   if (typeof output !== 'string' || !output) { e.push('output must be a non-empty string'); return; }
   if (path.isAbsolute(output) || path.normalize(output).split(path.sep)[0] === '..') {
-    e.push('output must be a relative path inside the repository'); return;
+    e.push('output must be a relative path, under the workspace or the repository it maps'); return;
   }
   // "." passes both checks above and then renders index.html straight over
   // whatever the repository keeps at its root. path.relative answers this
   // directly, with no regex to walk a trailing-separator run.
-  if (path.relative('.', output) === '') e.push('output must be a subdirectory, not the repository root');
+  if (path.relative('.', output) === '') e.push('output must be a subdirectory, not the root itself');
 }
 
 function checkScope(scope, e) {
