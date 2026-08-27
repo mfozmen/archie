@@ -34,7 +34,7 @@ function trackedFiles(root) {
 function grepProbe(root, probe, files) {
   const hits = [];
   const re = new RegExp(probe.pattern);
-  for (const f of files.filter(f => matchesWatch(f, probe.glob))) {
+  for (const f of files) {
     const lines = fs.readFileSync(path.join(root, f), 'utf8').split('\n');
     lines.forEach((text, i) => { if (re.test(text) && !isComment(text)) hits.push({ kind: probe.kind, file: f, line: i + 1, text: text.trim() }); });
   }
@@ -56,7 +56,14 @@ function rgProbe(root, probe, files, maxArgvBytes) {
     try {
       // --sort path costs rg its parallelism and buys determinism: git ls-files is
       // already path-sorted, so both sweep paths now emit hits in the same order.
-      out = run('rg', ['--json', '--sort', 'path', '--no-ignore', '--hidden', '-g', probe.glob,
+      // No -g: ripgrep does not apply a glob filter to files named explicitly on
+      // the command line, and every file here is named explicitly. Passing one
+      // read as if the probe were scoped while rg searched everything given to
+      // it — the whole repository, through a probe that said one directory. The
+      // list is filtered before it gets here, by the same matcher the built-in
+      // scan uses, so both paths answer to one glob dialect and neither delegates
+      // the question to a tool that may not be installed.
+      out = run('rg', ['--json', '--sort', 'path', '--no-ignore', '--hidden',
         '-e', probe.pattern, '--', ...chunk], { cwd: root });
     } catch (err) {
       if (err.status === 1) continue;              // this chunk genuinely has no matches
@@ -77,7 +84,11 @@ function sweep(root, recipe, opts = {}) {
   const files = opts.scope ? all.filter(f => inScope(f, opts.scope)) : all;
   const hits = [], counts = [], zeroProbes = [];
   for (const probe of recipe.probes) {
-    const h = useRg ? rgProbe(root, probe, files, opts.maxArgvBytes) : grepProbe(root, probe, files);
+    // Filtered here rather than inside either probe, so there is exactly one
+    // answer to "which files does this glob mean" no matter which path runs.
+    const matched = files.filter(f => matchesWatch(f, probe.glob));
+    const h = matched.length === 0 ? []
+      : useRg ? rgProbe(root, probe, matched, opts.maxArgvBytes) : grepProbe(root, probe, matched);
     hits.push(...h);
     counts.push({ ...probe, hits: h.length });
     if (h.length === 0) zeroProbes.push(probe);

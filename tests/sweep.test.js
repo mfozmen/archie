@@ -51,6 +51,24 @@ test('rg and grep paths agree on a brace glob, which recipes are written with', 
   assert.deepStrictEqual(sweep(root, braced, { forceGrep: false }).hits, viaGrep);
 });
 
+// The glob now decides the file list, so a glob that matches nothing hands the
+// probe an empty list — and ripgrep given a pattern and no files searches the
+// directory it was started in. A probe scoped to a directory that does not exist
+// would report the whole repository as hits for it.
+test('a glob that matches nothing sweeps nothing, not everything', () => {
+  const { root } = makeTempRepo();
+  write(root, 'app/Http/routes.php', "<?php\nRoute::get('/health', 'C@i');\n");
+  commitFixture(root);
+  const nowhere = { stack: 'laravel', probes: [
+    { kind: 'http', glob: 'does-not-exist/**/*.php', pattern: "Route::(get|post)\\(" }] };
+  for (const forceGrep of [true, false]) {
+    if (!forceGrep && !hasBin('rg')) { console.log('skip: ripgrep absent, rg path unverified'); continue; }
+    const res = sweep(root, nowhere, { forceGrep });
+    assert.deepStrictEqual(res.hits, [], `forceGrep=${forceGrep} swept files the glob never named`);
+    assert.strictEqual(res.zeroProbes.length, 1);
+  }
+});
+
 // The equivalence test: without it, "same model in -> same output out" is a wish.
 // Multi-file on purpose: with one file, any hit order looks deterministic, so a
 // single-file fixture cannot catch rg parallelising the file list out of order.
