@@ -87,6 +87,13 @@ opportunistically — never as a dependency.
 /plugin install archie@archie
 ```
 
+Or from my marketplace, alongside my other Claude Code plugins:
+
+```
+/plugin marketplace add mfozmen/claude-plugins
+/plugin install archie@mfozmen
+```
+
 Archie needs Claude Code, git, and Node 18 or newer. It has zero npm dependencies.
 [ripgrep](https://github.com/BurntSushi/ripgrep) is used when present and falls back
 to a built-in scan when it is not.
