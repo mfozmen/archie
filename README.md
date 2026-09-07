@@ -87,11 +87,11 @@ opportunistically — never as a dependency.
 /plugin install archie@archie
 ```
 
-Or from my marketplace, alongside my other Claude Code plugins:
+Or from my devkit marketplace, alongside my other Claude Code plugins:
 
 ```
-/plugin marketplace add mfozmen/claude-plugins
-/plugin install archie@mfozmen
+/plugin marketplace add mfozmen/devkit
+/plugin install archie@devkit
 ```
 
 Archie needs Claude Code, git, and Node 18 or newer. It has zero npm dependencies.
