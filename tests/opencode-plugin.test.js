@@ -65,7 +65,13 @@ test('opencode plugin registers the three read-only subagents', async () => {
     // The verifier's guarantee rests on holding no writing tool. Deny
     // everything, then allow only what Read/Grep/Glob/List can do.
     assert.strictEqual(agent.permission['*'], 'deny');
-    for (const tool of ['read', 'grep', 'glob', 'list'])
+    assert.deepStrictEqual(agent.permission.read, {
+      '*': 'allow',
+      '*.env': 'ask',
+      '*.env.*': 'ask',
+      '*.env.example': 'allow',
+    });
+    for (const tool of ['grep', 'glob', 'list'])
       assert.strictEqual(agent.permission[tool], 'allow', `${name}: ${tool} must be allowed`);
     for (const tool of ['bash', 'edit', 'write', 'task', 'webfetch', 'websearch'])
       assert.notStrictEqual(agent.permission[tool], 'allow', `${name}: ${tool} must not be allowed`);
@@ -76,15 +82,55 @@ test('opencode plugin lets the user override a command or agent', async () => {
   const { ArchiePlugin } = await load();
   const hooks = await ArchiePlugin({});
   const cfg = {
-    command: { 'archie:explain': { description: 'mine', template: 'MY TEMPLATE' } },
+    command: { 'archie:explain': { description: 'mine' } },
     agent: { tracer: { description: 'my tracer', mode: 'subagent', prompt: 'MY PROMPT' } },
   };
   await hooks.config(cfg);
 
-  assert.strictEqual(cfg.command['archie:explain'].template, 'MY TEMPLATE');
+  assert.strictEqual(cfg.command['archie:explain'].description, 'mine');
+  assert.ok(cfg.command['archie:explain'].template.length > 200, 'a partial command override keeps its template');
   assert.ok(cfg.command['archie:inventory'].template.length > 200, 'other commands still registered');
   assert.strictEqual(cfg.agent.tracer.prompt, 'MY PROMPT');
+  assert.strictEqual(cfg.agent.tracer.permission['*'], 'deny', 'an agent override cannot drop the read-only baseline');
   assert.ok(cfg.agent.verifier.prompt.length > 200, 'other agents still registered');
+});
+
+test('a partial agent override keeps the read-only definition', async () => {
+  const { ArchiePlugin } = await load();
+  const hooks = await ArchiePlugin({});
+  const cfg = { agent: { tracer: { model: 'anthropic/claude-sonnet-4-5' } } };
+  await hooks.config(cfg);
+
+  const spec = frontmatter(path.join(root, 'agents', 'tracer.md'));
+  assert.strictEqual(cfg.agent.tracer.model, 'anthropic/claude-sonnet-4-5');
+  assert.strictEqual(cfg.agent.tracer.mode, 'subagent');
+  assert.strictEqual(cfg.agent.tracer.prompt, spec.body);
+  assert.strictEqual(cfg.agent.tracer.permission['*'], 'deny');
+  assert.strictEqual(cfg.agent.tracer.permission.read['*.env'], 'ask');
+});
+
+test('a partial permission override keeps the deny-all baseline and the .env rules', async () => {
+  const { ArchiePlugin } = await load();
+  const hooks = await ArchiePlugin({});
+  const cfg = { agent: { verifier: { permission: { read: { 'src/**': 'allow' } } } } };
+  await hooks.config(cfg);
+
+  assert.strictEqual(cfg.agent.verifier.permission['*'], 'deny');
+  assert.strictEqual(cfg.agent.verifier.permission.read['*'], 'allow');
+  assert.strictEqual(cfg.agent.verifier.permission.read['src/**'], 'allow');
+  assert.strictEqual(cfg.agent.verifier.permission.read['*.env'], 'ask');
+  assert.strictEqual(cfg.agent.verifier.permission.grep, 'allow');
+});
+
+test('a user-defined agent is added without touching the Archie agents', async () => {
+  const { ArchiePlugin } = await load();
+  const hooks = await ArchiePlugin({});
+  const mine = { description: 'mine', mode: 'subagent', prompt: 'MINE' };
+  const cfg = { agent: { mine } };
+  await hooks.config(cfg);
+
+  assert.strictEqual(cfg.agent.mine.prompt, 'MINE');
+  assert.strictEqual(cfg.agent['inventory-worker'].permission['*'], 'deny');
 });
 
 test('opencode plugin adds the skills directory without dropping existing settings', async () => {

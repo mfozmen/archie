@@ -106,8 +106,8 @@ and `.opencode/plugin/archie.ts` registers the surface automatically:
 `/archie:inventory`, `/archie:explain`, `/archie:wiki`, `/archie:status`,
 `/archie:recipe`, `/archie:config`, plus the `inventory-worker`, `tracer` and `verifier`
 subagents. The three subagents are registered read-only — everything is denied except
-`read`, `grep`, `glob` and `list` — so the verifier's "cannot introduce a fabrication"
-guarantee does not rest on prose.
+`read`, `grep`, `glob` and `list`, while `.env` reads keep the global ask rule — so the
+verifier's "cannot introduce a fabrication" guarantee does not rest on prose.
 
 The plugin sets `CLAUDE_PLUGIN_ROOT` to the plugin directory for every shell, which is how
 the existing skill prose finds `scripts/` unchanged. To use Archie from another project,

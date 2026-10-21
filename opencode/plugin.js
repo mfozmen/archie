@@ -8,6 +8,13 @@ const SHELL_ROOT = ROOT.replace(/\\/g, "/")
 const SURFACES = ["inventory", "explain", "wiki", "status", "recipe", "config"]
 const AGENTS = ["inventory-worker", "tracer", "verifier"]
 
+const READ_PERMISSION = {
+  "*": "allow",
+  "*.env": "ask",
+  "*.env.*": "ask",
+  "*.env.example": "allow",
+}
+
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
 const OPENCODE_NOTE =
   "opencode adapter: `CLAUDE_PLUGIN_ROOT` is set for every shell; use the `question` " +
@@ -42,12 +49,27 @@ function agent(name) {
     prompt: body,
     permission: {
       "*": "deny",
-      read: "allow",
+      read: READ_PERMISSION,
       grep: "allow",
       glob: "allow",
       list: "allow",
     },
   }
+}
+
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function mergeAgent(base, override) {
+  const merged = { ...(base ?? {}), ...override }
+  const basePermission = isObject(base?.permission) ? base.permission : {}
+  const overridePermission = isObject(override.permission) ? override.permission : {}
+  merged.permission = { ...basePermission, ...overridePermission }
+  if (isObject(basePermission.read) && isObject(overridePermission.read)) {
+    merged.permission.read = { ...basePermission.read, ...overridePermission.read }
+  }
+  return merged
 }
 
 function addSkillsPath(cfg, skillsRoot) {
@@ -70,8 +92,18 @@ export const ArchiePlugin = async () => {
 
   return {
     config: async (cfg) => {
-      cfg.command = { ...commands, ...(cfg.command ?? {}) }
-      cfg.agent = { ...agents, ...(cfg.agent ?? {}) }
+      const mergedCommands = { ...commands }
+      for (const [name, override] of Object.entries(cfg.command ?? {})) {
+        mergedCommands[name] = { ...commands[name], ...override }
+      }
+      cfg.command = mergedCommands
+
+      const mergedAgents = { ...agents }
+      for (const [name, override] of Object.entries(cfg.agent ?? {})) {
+        mergedAgents[name] = mergeAgent(agents[name], override)
+      }
+      cfg.agent = mergedAgents
+
       addSkillsPath(cfg, join(ROOT, "skills"))
     },
     "shell.env": async (_input, output) => {
