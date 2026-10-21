@@ -111,14 +111,17 @@ verifier's "cannot introduce a fabrication" guarantee does not rest on prose.
 
 The plugin sets `CLAUDE_PLUGIN_ROOT` to the plugin directory for every shell, which is how
 the existing skill prose finds `scripts/` unchanged. To use Archie from another project,
-point opencode at the plugin entry in your `opencode.json`:
+add the published package to your `opencode.json`; opencode installs it on startup:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["/absolute/path/to/archie/opencode/plugin.js"]
+  "plugin": ["@mfozmen/archie"]
 }
 ```
+
+For a local checkout, use the absolute path to its plugin entry instead:
+`"plugin": ["/absolute/path/to/archie/opencode/plugin.js"]`.
 
 The deterministic scripts are still zero-dependency Node. The orchestration snippets in the
 skills are POSIX shell, so opencode needs a POSIX shell for them (Git Bash or WSL on Windows).
