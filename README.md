@@ -8,10 +8,11 @@
 
 Understand a legacy codebase by reading it — step by step, with evidence, never with guesses.
 
-Archie is a [Claude Code](https://docs.claude.com/en/docs/claude-code) plugin for the day you
-inherit a system nobody can explain: years of code, thin documentation, product owners who
-don't know their own features. Point Archie at the repo and it builds — incrementally, run by
-run — a browsable, evidence-backed map of what the system actually does.
+Archie is a [Claude Code](https://docs.claude.com/en/docs/claude-code) and
+[opencode](https://opencode.ai) plugin for the day you inherit a system nobody can explain:
+years of code, thin documentation, product owners who don't know their own features. Point
+Archie at the repo and it builds — incrementally, run by run — a browsable, evidence-backed
+map of what the system actually does.
 
 > [!NOTE]
 > Archie is **read-only against your code** and **allergic to assumptions**. Every claim it
@@ -94,9 +95,37 @@ Or from my devkit marketplace, alongside my other Claude Code plugins:
 /plugin install archie@devkit
 ```
 
-Archie needs Claude Code, git, and Node 18 or newer. It has zero npm dependencies.
-[ripgrep](https://github.com/BurntSushi/ripgrep) is used when present and falls back
-to a built-in scan when it is not.
+Archie needs Claude Code or opencode, git, and Node 18 or newer. It has zero npm
+dependencies. [ripgrep](https://github.com/BurntSushi/ripgrep) is used when present and
+falls back to a built-in scan when it is not.
+
+## opencode
+
+The same skills, agents and scripts run under opencode. Open this repository in opencode
+and `.opencode/plugin/archie.ts` registers the surface automatically:
+`/archie:inventory`, `/archie:explain`, `/archie:wiki`, `/archie:status`,
+`/archie:recipe`, `/archie:config`, plus the `inventory-worker`, `tracer` and `verifier`
+subagents. The three subagents are registered read-only — everything is denied except
+`read`, `grep`, `glob` and `list`, while `.env` reads keep the global ask rule — so the
+verifier's "cannot introduce a fabrication" guarantee does not rest on prose.
+
+The plugin sets `CLAUDE_PLUGIN_ROOT` to the plugin directory for every shell, which is how
+the existing skill prose finds `scripts/` unchanged. To use Archie from another project,
+point opencode at the plugin entry in your `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["/absolute/path/to/archie/opencode/plugin.js"]
+}
+```
+
+The deterministic scripts are still zero-dependency Node. The orchestration snippets in the
+skills are POSIX shell, so opencode needs a POSIX shell for them (Git Bash or WSL on Windows).
+
+The Claude Code agents pin `sonnet`/`opus` by alias. opencode models are `provider/model`,
+which the plugin cannot guess, so the subagents inherit your session model; override any of
+them with `agent.tracer.model` (and the others) in `opencode.json` if you want the same split.
 
 ## Quickstart
 
