@@ -48,5 +48,7 @@
 | `scripts/` | Deterministic Node core — model store, sweep, staleness, churn, renderers |
 | `skills/` | The user-facing command prose, one directory per command |
 | `agents/` | The three subagent definitions and their JSON output contracts |
+| `opencode/` | The opencode plugin entry point — registers the skills, commands and read-only subagents, and sets `CLAUDE_PLUGIN_ROOT` for shell execution |
+| `.opencode/plugin/` | The local adapter that loads `opencode/plugin.js` when this repository is opened in opencode |
 | `docs/specs/` | The design spec — the living contract. Argue against it before changing behavior, and change it in the same PR that changes behavior |
 | `tests/` | `node --test` suites, plus agent-contract fixtures |

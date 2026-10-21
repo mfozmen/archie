@@ -16,7 +16,7 @@ explicitly out of scope for v1 (they can later be derived from the same model).
 
 | Topic | Decision |
 |---|---|
-| Distribution | Open source, standalone Claude Code plugin. Zero hard dependency on any company tooling. |
+| Distribution | Open source, standalone Claude Code and opencode plugin. Zero hard dependency on any company tooling. |
 | Language support | Language-agnostic. No per-framework parsers shipped. |
 | Environment | Opportunistic enrichment: if a knowledge base / issue tracker / grooming plugin is installed, use it; never require it. |
 | Unit of analysis | Two phases: one cheap inventory pass, then selective per-flow depth, accumulating over time. |
@@ -290,6 +290,12 @@ present in every Claude Code install.
 | `verifier` | `opus` | Its silent failure is confirming a wrong claim — the one failure the whole design exists to prevent. It runs once per explain, so the saving from a cheaper model is negligible against that risk. |
 
 The rule is **spend where the failure is silent**, not where the work is hard.
+
+The opencode adapter cannot carry these aliases as written: opencode models are
+`provider/model`, and the plugin cannot know which provider the user has configured. It
+therefore inherits the session model for all three agents; a user who wants the same split
+sets `agent.tracer.model` (and the others) in their opencode config, which the adapter lets
+override its defaults.
 
 Aliases, not pinned model IDs: a public plugin that hard-codes `claude-opus-5` breaks on the
 day that ID moves. `haiku` is deliberately unused — it is a generation behind (4.5) with a

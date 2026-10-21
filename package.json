@@ -1,3 +1,4 @@
 { "name": "archie", "version": "0.2.1", "private": true, "license": "MIT",
+  "main": "./opencode/plugin.js",
   "engines": { "node": ">=18" },
   "scripts": { "test": "node --test" } }
