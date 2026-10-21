@@ -172,3 +172,16 @@ test('the local opencode adapter and package entry point resolve to the plugin',
   assert.strictEqual(pkg.main, './opencode/plugin.js');
   assert.ok(fs.existsSync(path.join(root, 'opencode', 'plugin.js')));
 });
+
+test('the npm package is publishable and ships everything the plugin reads', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const plugin = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+
+  assert.strictEqual(pkg.private, undefined, 'a private package cannot be published');
+  assert.strictEqual(pkg.name, '@mfozmen/archie');
+  assert.strictEqual(pkg.version, plugin.version, 'package.json and plugin.json versions must match');
+  assert.strictEqual(pkg.publishConfig.access, 'public');
+  assert.strictEqual(pkg.publishConfig.provenance, true);
+  for (const dir of ['opencode/', 'skills/', 'agents/', 'scripts/', 'vendor/'])
+    assert.ok(pkg.files.includes(dir), `${dir} must be published`);
+});

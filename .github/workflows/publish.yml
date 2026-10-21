@@ -1,0 +1,32 @@
+name: publish
+
+# Trusted publishing: GitHub Actions proves its identity to npm with an OIDC
+# token, so no npm API token is stored in this repository. Configure the trust
+# once with `npm trust github @mfozmen/archie --file publish.yml --repo
+# mfozmen/archie --allow-publish`.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Trusted publishing needs npm 11.5.1 or newer; do not install a
+      # NODE_AUTH_TOKEN, which would make npm prefer token auth over OIDC.
+      - name: Install npm
+        run: npm install -g npm@latest
+      - name: Install ripgrep
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+      - name: Unit tests
+        run: npm test
+      - name: Publish
+        run: npm publish --provenance --access public

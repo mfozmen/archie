@@ -1,4 +1,44 @@
-{ "name": "archie", "version": "0.2.1", "private": true, "license": "MIT",
+{
+  "name": "@mfozmen/archie",
+  "version": "0.3.0",
+  "description": "Understand a legacy codebase by reading it — an evidence-backed, incrementally-growing system map for Claude Code and opencode.",
+  "author": {
+    "name": "Mehmet Fahri Özmen"
+  },
+  "homepage": "https://github.com/mfozmen/archie",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfozmen/archie.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mfozmen/archie/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "legacy",
+    "documentation",
+    "architecture",
+    "codebase",
+    "claude-code",
+    "opencode",
+    "plugin"
+  ],
   "main": "./opencode/plugin.js",
-  "engines": { "node": ">=18" },
-  "scripts": { "test": "node --test" } }
+  "files": [
+    "opencode/",
+    "skills/",
+    "agents/",
+    "scripts/",
+    "vendor/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
