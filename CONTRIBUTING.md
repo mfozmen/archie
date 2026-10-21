@@ -41,6 +41,50 @@
   stays with a human.
 - Keep `.claude-plugin/plugin.json` and `package.json` versions in sync.
 
+## Releasing
+
+A GitHub release is the switch that publishes the npm package. The version in
+`package.json` and `.claude-plugin/plugin.json` is the version users get.
+
+1. Bump `version` in both files, update the behavior and tests, and merge the PR
+   to `master` after CI passes.
+2. Create a release tagged `vX.Y.Z` on `master`. Write the notes to a file so the
+   leak scanner can check them first:
+
+   ```bash
+   bash scripts/leak-scan.sh --file release-notes.md
+   gh release create vX.Y.Z --target master \
+     --title "vX.Y.Z — a short description" \
+     --notes-file release-notes.md
+   ```
+
+3. Publishing the release starts `.github/workflows/publish.yml`. It runs the
+   tests again and publishes `@mfozmen/archie` with npm trusted publishing and
+   provenance. No npm token is stored in the repository.
+4. Confirm the result:
+
+   ```bash
+   npm view @mfozmen/archie version dist-tags
+   ```
+
+   `latest` must point at the new version, and the npm page should show the
+   provenance attestation. If the workflow fails, fix the cause and re-run that
+   run with `gh run rerun <run-id>`; npm will reject publishing the same version
+   twice.
+
+### One-time trusted publisher setup
+
+The trust is already configured for this repository. If the package is ever
+recreated, npm requires it to exist before a trust can be added: publish one
+bootstrap version first, then run
+
+```bash
+npx npm@latest trust github @mfozmen/archie \
+  --file publish.yml --repo mfozmen/archie --allow-publish
+```
+
+Never add an `NPM_TOKEN` secret. OIDC is the authentication.
+
 ## Layout
 
 | Path | What lives there |
